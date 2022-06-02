@@ -1,0 +1,5 @@
+Dosbox command
+
+dosbox.exe -noconsole -c "mount d ." -c "mount C 'C:\Users\Ben\Desktop\Games\Indiana Jones and the Fate of Atlantis (1992)(Lucasfilm Games LLC) [Adventure]'" -c "c:" -c "atlantis.exe /? >d:\out.txt" -exit 
+
+
