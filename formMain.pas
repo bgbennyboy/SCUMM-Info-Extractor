@@ -6,9 +6,10 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Grids,
   System.ImageList, Vcl.ImgList,  Vcl.ExtCtrls, IOUtils, System.Hash, IdHashCRC,
-  AdvMemo, AdvObj, AdvGrid, AdvUtil, BaseGrid,
+  AdvMemo, AdvObj, AdvGrid, AdvUtil, BaseGrid, System.RegularExpressions,
   JCLFileUtils, JCLShell, JclStrings,
-  OtlTask, OtlCollections, OtlParallel, OtlSync, tmsAdvGridExcel;
+  OtlTask, OtlCollections, OtlParallel, OtlSync, tmsAdvGridExcel,
+  uMemReader;
 
 type
   TfrmMain = class(TForm)
@@ -22,7 +23,6 @@ type
     btnSave: TButton;
     FileSaveDialog1: TFileSaveDialog;
     AdvGridExcelIO1: TAdvGridExcelIO;
-    Panel2: TPanel;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnChooseFolderClick(Sender: TObject);
@@ -35,6 +35,7 @@ type
     { Private declarations }
     ExeFiles: TStringList;
     function IsExeInvalid(OutputText: string): boolean;
+    function ExtractStringFromResourceFiles(Path, Exename: string): string;
     procedure GetFileChecksums(TheFile: string; var CRC: string; var MD5: string);
     procedure Log(LogItem: String);
   public
@@ -49,6 +50,55 @@ var
 implementation
 
 {$R *.dfm}
+
+function StripNonAscii(const s: string): string;
+var
+  i, Count: Integer;
+begin
+  SetLength(Result, Length(s));
+  Count := 0;
+  for i := 1 to Length(s) do begin
+    if ((s[i] >= #32) and (s[i] <= #127)) or (s[i] in [#10, #13]) then begin
+      inc(Count);
+      Result[Count] := s[i];
+    end;
+  end;
+  SetLength(Result, Count);
+end;
+
+function FindFileHeader(SearchStream: TExplorerMemoryStream;
+  StartSearchAt, EndSearchAt: Integer; Header: ansistring): integer;
+var
+  HeaderLength, Index: integer;
+begin
+  Result:=-1;
+  Index:=1;
+  if EndSearchAt > SearchStream.Size then
+    EndSearchAt:=SearchStream.Size;
+
+  HeaderLength:=Length(Header);
+  if HeaderLength <= 0 then exit;
+
+  SearchStream.Position:=StartSearchAt;
+  while SearchStream.Position < EndSearchAt do
+  begin
+    if AnsiChar(SearchStream.ReadByte) <> Header[Index] then
+    begin
+      if Index > 1 then
+        SearchStream.Position := SearchStream.Position  -1;
+
+      Index:=1;
+      continue;
+    end;
+
+    inc(Index);
+    if index > HeaderLength then
+    begin
+      Result:=SearchStream.Position - HeaderLength;
+      exit;
+    end;
+  end;
+end;
 
 procedure ExecuteProcess(
   const ExecutablePath: string;
@@ -120,7 +170,6 @@ begin
   end;
 end;
 
-
 procedure TfrmMain.AdvGridExcelIO1ExportColumnFormat(Sender: TObject; GridCol,
   GridRow, XlsCol, XlsRow: Integer; const Value: WideString;
   var ExportCellAsString: Boolean);
@@ -168,7 +217,7 @@ begin
     AdvStringGrid1.Cols[2].Add( ExtractFileName(ExeFiles[i] ));
   end;
 
-  Log('Please wait, running interpreters and parsing their output, this can take a while.');
+  Log('Please wait, running interpreters and parsing their output, this will take a while.');
 
   btnChooseFolder.ImageIndex := 3;
   btnChooseFolder.Caption := 'Cancel';
@@ -202,14 +251,17 @@ begin
       task.Invoke(
         procedure
         var
-          outtext, firstline, versionstring, datetimestring: string;
+          outtext, firstline, versionstring, datetimestring, resfilestring: string;
           CRC32, MD5: string;
           i: integer;
         begin
           if fileexists('outputs\out' + inttostr(value) + '.txt') then
           begin
             OutText := Trim( TFile.ReadAllText('outputs\out' + inttostr(value) + '.txt') );  //Read the output
-            AdvStringGrid1.AllCells[7, value+1] := OutText;
+            AdvStringGrid1.AllCells[8, value+1] := OutText;
+
+            resfilestring := ExtractStringFromResourceFiles( ExtractFilePath(ExeFiles[value]), extractfilename(ExeFiles[value]));
+            AdvStringGrid1.AllCells[7, value+1] := resfilestring;
 
             firstline := StrBefore(sLineBreak, OutText);
             firstline := firstline + sLineBreak; //Add the linebreak back in, we search for it later
@@ -235,15 +287,12 @@ begin
           //else Log(ExeFiles[value]);
 
           //Invalid exe
-          if (OutText.Length = 0) or (IsExeInvalid(OutText)) then
+          if ((OutText.Length = 0) or (IsExeInvalid(OutText))) and (resfilestring = '') then
           begin
             for i := 0 to (AdvStringGrid1.ColCount -1) do
               AdvStringGrid1.Colors[i, value+1] := $003743ED;//0000009F;
           end;
 
-          //Last column editable
-          {for i := 0 to (AdvStringGrid1.RowCount -1) do
-            AdvStringGrid1.ReadOnly[4, i] := false;}
 
           GetFileChecksums( ExeFiles[value], CRC32, MD5 );
           AdvStringGrid1.AllCells[5, value+1] := CRC32;
@@ -265,6 +314,135 @@ begin
 
   //AdvStringGrid1.SaveToXLS(FileSaveDialog1.FileName);
   advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters')
+end;
+
+function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
+const
+  ResExtensions: array[0..0] of string = ('.LA0');
+  ResourceFileExtensions: array [0..0] of string = ('.LEC');
+var
+  i, j, k, foundoffset, blocksize: integer;
+  MemStream: TExplorerMemoryStream;
+  //sr: TSearchRec;
+  FoundFiles, FoundStrings: TStringList;
+begin
+  result :='';
+
+  // >=V5 resource files should always have the same name as the exe with a different extension
+  // lflxx and diskxx files are always the same name
+    //For Full Throttle and above - in the index file its in the MAXS block
+    //So find MAXS, next 4 bytes BE is blocksize, so read blocksize-8 as a string and then trim it
+
+    //For LFL and DISK.LEC files - 0x 2701 seems to be an identifier for start of a string- then string after that, null terminated
+    // for .000 001 etc - ?
+
+  //See if any resource files with those extensions exist in the folder
+  {for i := 0 to length(ResExtensions)-1 do
+  begin
+    if fileexists(Path + ChangeFileExt(Exename, ResExtensions[i])) then
+    begin
+      memstream := TExplorerMemoryStream.Create;
+      try
+        memstream.LoadFromFile(Path + ChangeFileExt(Exename, ResExtensions[i]));
+        foundoffset := FindFileHeader(memstream, 0, memstream.Size, 'MAXS');
+        if foundoffset > -1 then
+        begin
+          memstream.Position := foundoffset + 4;
+          blocksize := memstream.ReadDWordBE - 8;
+          Result := memstream.ReadString(blocksize);
+        end;
+      finally
+        memstream.Free;
+      end;
+
+    end;
+  end;}
+
+
+  for i := 0 to length(ResExtensions)-1 do
+  begin
+    //if FindFirst(Path + '*'+ ResExtensions[i], 0, sr) = 0 then
+    //An exception for comi.exe on the cd. When not installed COMI.EXE is in the Install folder and he index file is in the parent folder.
+    if (Exename = 'COMI.EXE') and (fileexists(ExtractFilePath(ExcludeTrailingPathDelimiter(Path)) + '/COMI.LA0')) then
+      Path := ExtractFilePath(ExcludeTrailingPathDelimiter(Path) +'/');
+
+    if fileexists(Path + ChangeFileExt(Exename, ResExtensions[i])) then
+    begin
+      memstream := TExplorerMemoryStream.Create;
+      try
+        memstream.LoadFromFile(Path + ChangeFileExt(Exename, ResExtensions[i])); //sr.Name);
+        foundoffset := FindFileHeader(memstream, 0, memstream.Size, 'MAXS');
+        if foundoffset > -1 then
+        begin
+          memstream.Position := foundoffset + 4;
+          blocksize := memstream.ReadDWordBE - 8;
+          Result := memstream.ReadString(blocksize);
+          //log( IntToStr(StrNIPos(Result, #0, 2)) );  //Find second occurance of null character
+        end;
+      finally
+        memstream.Free;
+      end;
+    end
+    //FindClose(sr);
+  end;
+
+  FoundFiles := TStringList.Create;
+  try
+    memstream := TExplorerMemoryStream.Create;
+    try
+      for i := 0 to length(ResourceFileExtensions) -1 do
+      begin
+        //Find all files in the folder with this file extension
+        FoundFiles.Clear;
+        BuildFileList(IncludeTrailingPathDelimiter(Path) + '*' + ResourceFileExtensions[i], faAnyFile, FoundFiles );
+        if FoundFiles.Count = 0 then Continue;
+
+        for j := 0 to FoundFiles.Count -1 do
+        begin
+          MemStream.Clear;
+          MemStream.LoadFromFile(Path + FoundFiles[j]);
+          MemStream.SetXORVal($69);
+
+          FoundStrings := TStringList.Create;
+          try
+            //Search entire file for strings
+            foundoffset := 0;
+            while foundoffset <> -1 do
+            begin
+              foundoffset := FindFileHeader(MemStream, foundoffset, MemStream.Size, #$27#$01); //These hex values start strings in the scripts
+              if foundoffset > 0 then
+              begin
+                MemStream.Position := foundoffset;
+                FoundStrings.Add(MemStream.ReadNullTerminatedString(100));
+                foundoffset := MemStream.Position; //Update pointer with where we are after reading the string
+              end;
+            end;
+
+            //Now do regex to get the string we want. Search for date strings.
+            for k := 0 to FoundStrings.Count -1 do
+            begin
+              if TRegEx.IsMatch(FoundStrings[k], '[0-3]?[0-9].[0-3]?[0-9].(?:[0-9]{2})?[0-9]{2}', [roNone]) then
+              begin
+                result := StripNonAscii(FoundStrings[k]);
+                log(result);
+                Exit;
+              end;
+            end;
+
+          finally
+            FoundStrings.Free;
+          end;
+
+        end;
+      end;
+    finally
+      memstream.Free;
+    end;
+  finally
+    FoundFiles.Free;
+  end;
+
+
 end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -302,7 +480,7 @@ begin
     Temp.Free;
   end;
 
-  MD5 := THashMD5.GetHashStringFromFile( TheFile );
+  MD5 := UpperCase(THashMD5.GetHashStringFromFile( TheFile ))
 end;
 
 function TfrmMain.IsExeInvalid(OutputText: string): boolean;

@@ -3,7 +3,7 @@ object frmMain: TfrmMain
   Top = 0
   Caption = 'SCUMM Info Extractor'
   ClientHeight = 568
-  ClientWidth = 1076
+  ClientWidth = 1071
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -20,7 +20,7 @@ object frmMain: TfrmMain
   object memoLog: TAdvMemo
     Left = 0
     Top = 434
-    Width = 1076
+    Width = 1071
     Height = 134
     Cursor = crIBeam
     ActiveLineSettings.ShowActiveLine = False
@@ -147,14 +147,15 @@ object frmMain: TfrmMain
   object AdvStringGrid1: TAdvStringGrid
     Left = 0
     Top = 59
-    Width = 1076
+    Width = 1071
     Height = 375
     Align = alClient
-    ColCount = 8
+    ColCount = 9
     DefaultColWidth = 100
     DrawingStyle = gdsClassic
     FixedColor = clWhite
     FixedCols = 0
+    RowCount = 11
     Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goRowSizing, goColSizing, goFixedRowDefAlign]
     ScrollBars = ssVertical
     TabOrder = 1
@@ -177,9 +178,10 @@ object frmMain: TfrmMain
       'Date+Time'
       'CRC32'
       'MD5'
-      'Output')
+      'From resource files'
+      'Interpreter Output')
     ColumnSize.Stretch = True
-    ColumnSize.StretchColumn = 7
+    ColumnSize.StretchColumn = 8
     ColumnSize.SynchWithGrid = True
     ControlLook.FixedGradientFrom = clWhite
     ControlLook.FixedGradientTo = clWhite
@@ -226,7 +228,7 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 190
+    FixedColWidth = 176
     FixedRowHeight = 22
     FixedFont.Charset = DEFAULT_CHARSET
     FixedFont.Color = 3881787
@@ -285,29 +287,20 @@ object frmMain: TfrmMain
     Version = '8.6.4.2'
     ExplicitWidth = 993
     ColWidths = (
-      190
-      122
-      100
-      117
-      96
-      69
-      99
-      279)
-    object Panel2: TPanel
-      Left = 808
-      Top = 248
-      Width = 185
-      Height = 41
-      Caption = 'Panel2'
-      Color = 3621869
-      ParentBackground = False
-      TabOrder = 4
-    end
+      176
+      114
+      92
+      109
+      89
+      62
+      91
+      149
+      185)
   end
   object Panel1: TPanel
     Left = 0
     Top = 0
-    Width = 1076
+    Width = 1071
     Height = 59
     Align = alTop
     BevelOuter = bvNone
@@ -323,7 +316,7 @@ object frmMain: TfrmMain
       WordWrap = True
     end
     object btnSave: TButton
-      Left = 944
+      Left = 408
       Top = 8
       Width = 121
       Height = 45
@@ -1434,8 +1427,8 @@ object frmMain: TfrmMain
         FileMask = '*.xls'
       end>
     Options = []
-    Left = 504
-    Top = 336
+    Left = 512
+    Top = 328
   end
   object AdvGridExcelIO1: TAdvGridExcelIO
     AdvStringGrid = AdvStringGrid1
@@ -1445,6 +1438,7 @@ object frmMain: TfrmMain
     Options.ExportRawRTF = False
     Options.ExportShowInExcel = True
     Options.ExportCellMargins = True
+    Options.UseExcelStandardColorPalette = False
     UseUnicode = False
     GridStartRow = 0
     GridStartCol = 0
