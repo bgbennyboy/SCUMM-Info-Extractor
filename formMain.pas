@@ -318,131 +318,101 @@ end;
 
 function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
 const
-  ResExtensions: array[0..0] of string = ('.LA0');
-  ResourceFileExtensions: array [0..0] of string = ('.LEC');
+  ResourceFileExtensions: array [0..1] of string = ('.LA0', '.LEC');
 var
   i, j, k, foundoffset, blocksize: integer;
   MemStream: TExplorerMemoryStream;
-  //sr: TSearchRec;
   FoundFiles, FoundStrings: TStringList;
+  ParentDir: string;
 begin
+   {For V5 and above resource files should always have the same name as the exe with a different extension eg monkey2.001
+   lflxx and diskxx files are always the same name.
+
+   For V7 and above - version strins is in the index file - in the MAXS block.
+    So find MAXS, next 4 bytes BE is blocksize, read blocksize-8 as a string and then trim it.
+
+   For LFL and DISK.LEC files - 0x 2701 seems to be an identifier for start of a string - then null terminated string after that.
+    Diskxx.LEC files - version string is usually in disk01.lec
+    *.lfl files - version string could be in any lfl file
+
+   For .000 .001 files - version string in the .001 file. What about amiga, mac where it can be .003, 004 etc?}
+
   result :='';
 
-  // >=V5 resource files should always have the same name as the exe with a different extension
-  // lflxx and diskxx files are always the same name
-    //For Full Throttle and above - in the index file its in the MAXS block
-    //So find MAXS, next 4 bytes BE is blocksize, so read blocksize-8 as a string and then trim it
+  //An exception for comi.exe on the cd. When not installed COMI.EXE is in the Install folder and the index file is in the parent folder.
+  ParentDir := IncludeTrailingPathDelimiter(ExtractFilePath(ExcludeTrailingPathDelimiter(Path)));
+  if (Exename = 'COMI.EXE') and (FileExists(ParentDir + 'COMI.LA0')) then
+    Path := ParentDir;
 
-    //For LFL and DISK.LEC files - 0x 2701 seems to be an identifier for start of a string- then string after that, null terminated
-    // for .000 001 etc - ?
-
-  //See if any resource files with those extensions exist in the folder
-  {for i := 0 to length(ResExtensions)-1 do
-  begin
-    if fileexists(Path + ChangeFileExt(Exename, ResExtensions[i])) then
-    begin
-      memstream := TExplorerMemoryStream.Create;
-      try
-        memstream.LoadFromFile(Path + ChangeFileExt(Exename, ResExtensions[i]));
-        foundoffset := FindFileHeader(memstream, 0, memstream.Size, 'MAXS');
-        if foundoffset > -1 then
-        begin
-          memstream.Position := foundoffset + 4;
-          blocksize := memstream.ReadDWordBE - 8;
-          Result := memstream.ReadString(blocksize);
-        end;
-      finally
-        memstream.Free;
-      end;
-
-    end;
-  end;}
-
-
-  for i := 0 to length(ResExtensions)-1 do
-  begin
-    //if FindFirst(Path + '*'+ ResExtensions[i], 0, sr) = 0 then
-    //An exception for comi.exe on the cd. When not installed COMI.EXE is in the Install folder and he index file is in the parent folder.
-    if (Exename = 'COMI.EXE') and (fileexists(ExtractFilePath(ExcludeTrailingPathDelimiter(Path)) + '/COMI.LA0')) then
-      Path := ExtractFilePath(ExcludeTrailingPathDelimiter(Path) +'/');
-
-    if fileexists(Path + ChangeFileExt(Exename, ResExtensions[i])) then
-    begin
-      memstream := TExplorerMemoryStream.Create;
-      try
-        memstream.LoadFromFile(Path + ChangeFileExt(Exename, ResExtensions[i])); //sr.Name);
-        foundoffset := FindFileHeader(memstream, 0, memstream.Size, 'MAXS');
-        if foundoffset > -1 then
-        begin
-          memstream.Position := foundoffset + 4;
-          blocksize := memstream.ReadDWordBE - 8;
-          Result := memstream.ReadString(blocksize);
-          //log( IntToStr(StrNIPos(Result, #0, 2)) );  //Find second occurance of null character
-        end;
-      finally
-        memstream.Free;
-      end;
-    end
-    //FindClose(sr);
-  end;
-
-  FoundFiles := TStringList.Create;
+  FoundFiles:= nil;
+  MemStream := nil;
+  FoundStrings := nil;
   try
-    memstream := TExplorerMemoryStream.Create;
-    try
-      for i := 0 to length(ResourceFileExtensions) -1 do
-      begin
-        //Find all files in the folder with this file extension
-        FoundFiles.Clear;
-        BuildFileList(IncludeTrailingPathDelimiter(Path) + '*' + ResourceFileExtensions[i], faAnyFile, FoundFiles );
-        if FoundFiles.Count = 0 then Continue;
+    FoundFiles := TStringList.Create;
+    MemStream := TExplorerMemoryStream.Create;
+    FoundStrings := TStringList.Create;
 
-        for j := 0 to FoundFiles.Count -1 do
-        begin
-          MemStream.Clear;
-          MemStream.LoadFromFile(Path + FoundFiles[j]);
+    for i := 0 to length(ResourceFileExtensions) -1 do
+    begin
+      //Find all files in the folder with this file extension
+      FoundFiles.Clear;
+      BuildFileList(IncludeTrailingPathDelimiter(Path) + '*' + ResourceFileExtensions[i], faAnyFile, FoundFiles );
+      if FoundFiles.Count = 0 then Continue;
+
+      for j := 0 to FoundFiles.Count -1 do
+      begin
+        FoundStrings.Clear;
+        MemStream.Clear;
+        MemStream.LoadFromFile(Path + FoundFiles[j]);
+
+        if ResourceFileExtensions[i] = '.LA0' then
+          MemStream.SetXORVal($0)
+        else
           MemStream.SetXORVal($69);
 
-          FoundStrings := TStringList.Create;
-          try
-            //Search entire file for strings
-            foundoffset := 0;
-            while foundoffset <> -1 do
-            begin
-              foundoffset := FindFileHeader(MemStream, foundoffset, MemStream.Size, #$27#$01); //These hex values start strings in the scripts
-              if foundoffset > 0 then
-              begin
-                MemStream.Position := foundoffset;
-                FoundStrings.Add(MemStream.ReadNullTerminatedString(100));
-                foundoffset := MemStream.Position; //Update pointer with where we are after reading the string
-              end;
-            end;
-
-            //Now do regex to get the string we want. Search for date strings.
-            for k := 0 to FoundStrings.Count -1 do
-            begin
-              if TRegEx.IsMatch(FoundStrings[k], '[0-3]?[0-9].[0-3]?[0-9].(?:[0-9]{2})?[0-9]{2}', [roNone]) then
-              begin
-                result := StripNonAscii(FoundStrings[k]);
-                log(result);
-                Exit;
-              end;
-            end;
-
-          finally
-            FoundStrings.Free;
+        //>=V7 Full Throttle, The Dig, CMI
+        if ResourceFileExtensions[i] = '.LA0' then
+        begin
+          foundoffset := FindFileHeader(memstream, 0, memstream.Size, 'MAXS');
+          if foundoffset > -1 then
+          begin
+            memstream.Position := foundoffset + 4;
+            blocksize := memstream.ReadDWordBE - 8;
+            Result := memstream.ReadString(blocksize);
+            Exit;
           end;
+        end;
 
+        //DISK.LEC and .LFL Files. Search the entire file for strings.
+        foundoffset := 0;
+        while foundoffset <> -1 do
+        begin
+          foundoffset := FindFileHeader(MemStream, foundoffset, MemStream.Size, #$27#$01); //These hex values preceed strings in the scripts
+          if foundoffset > 0 then
+          begin
+            MemStream.Position := foundoffset;
+            FoundStrings.Add(MemStream.ReadNullTerminatedString(100));
+            foundoffset := MemStream.Position; //Update pointer with where we are after reading the string
+          end;
+        end;
+
+        //Now do regex to get the string we want. Search for date strings.
+        for k := 0 to FoundStrings.Count -1 do
+        begin
+          if TRegEx.IsMatch(FoundStrings[k], '[0-3]?[0-9].[0-3]?[0-9].(?:[0-9]{2})?[0-9]{2}', [roNone]) then
+          begin
+            result := StripNonAscii(FoundStrings[k]);
+            log(result);
+            Exit;
+          end;
         end;
       end;
-    finally
-      memstream.Free;
     end;
   finally
+    FoundStrings.Free;
+    MemStream.Free;
     FoundFiles.Free;
   end;
-
-
 end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
