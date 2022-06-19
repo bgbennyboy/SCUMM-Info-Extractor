@@ -24,6 +24,7 @@ type
     btnSave: TButton;
     FileSaveDialog1: TFileSaveDialog;
     AdvGridExcelIO1: TAdvGridExcelIO;
+    btnScanResourceFiles: TButton;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnChooseFolderClick(Sender: TObject);
@@ -32,6 +33,7 @@ type
     procedure AdvGridExcelIO1ExportColumnFormat(Sender: TObject; GridCol,
       GridRow, XlsCol, XlsRow: Integer; const Value: WideString;
       var ExportCellAsString: Boolean);
+    procedure btnScanResourceFilesClick(Sender: TObject);
   private
     { Private declarations }
     ExeFiles: TStringList;
@@ -45,6 +47,10 @@ type
   end;
 
 const
+  InvalidColour = $003743ED;
+
+  ResourceFileExtensions: array [0..3] of string = ('.LA0', '.LEC', '.LFL', '.001');
+
   ExesToExclude: array[0..52] of string =
     ('8514HERE.EXE','8514HERE.EXE','ACROREAD.EXE','ACRTEST.EXE', 'ALLBOOT.EXE',
     'AR16D30.EXE','AR32D30.EXE','AR32D301.EXE','AR500DEU.EXE','ASSAULT.EXE',
@@ -297,7 +303,7 @@ begin
             if MatchText(extractfilename(ExeFiles[value]), ExesToExclude) then
             begin
               for i := 0 to (AdvStringGrid1.ColCount -1) do
-                AdvStringGrid1.Colors[i, value+1] := clGreen;//$003743ED;
+                AdvStringGrid1.Colors[i, value+1] := InvalidColour;
 
               exit;
             end;
@@ -334,7 +340,7 @@ begin
           if ((OutText.Length = 0) or (IsExeInvalid(OutText))) and (resfilestring = '') then
           begin
             for i := 0 to (AdvStringGrid1.ColCount -1) do
-              AdvStringGrid1.Colors[i, value+1] := $003743ED;//0000009F;
+              AdvStringGrid1.Colors[i, value+1] := InvalidColour;//0000009F;
           end;
 
 
@@ -359,13 +365,71 @@ begin
   advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters')
 end;
 
-function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
-const
-  ResourceFileExtensions: array [0..3] of string = ('.LA0', '.LEC', '.LFL', '.001');
+procedure TfrmMain.btnScanResourceFilesClick(Sender: TObject);
 var
-  i, j, k, foundoffset, blocksize: integer;
+  i: integer;
+  FoundFiles, CompletedDirs: TStringList;
+  ResfileString: string;
+begin
+  if FileOpenDialog1.Execute = false then
+    exit;
+
+  Log('Searching for resources files in ' + FileOpenDialog1.FileName);
+
+  FoundFiles  := nil;
+  CompletedDirs := nil;
+  try
+    FoundFiles  := TStringList.Create;
+    CompletedDirs := TStringList.Create;
+    if AdvBuildFilelist(IncludeTrailingPathDelimiter( FileOpenDialog1.FileName ) + '*.*' , faAnyFile, FoundFiles, amAny, [flFullNames, flRecursive]) = false then
+    begin
+      Log('There was an error scanning the folder.');
+      Exit;
+    end;
+
+    //Then parse the list only scanning files we want
+    //Only add to the grid actual resource files with the string
+    //Maybe list files into a different list and add proper ones to exefiles list once they've found a version string in there
+    //Need to exclude other files in that dir once a version string found   . Perhaps keep a list of dirs we've covered and if its in there then skip it. That would allow for subdirs with different stuff in. Just check the actual dir for the file.
+    //Dont clear grid when clicking buttons - need a clear button then.
+    //Need to merge results with whats already in the grid.
+    Log('Please wait, scanning resource files for version information, this will take a while.');
+
+    for i := 0 to FoundFiles.Count -1 do
+    begin
+      if (MatchText(ExtractFileExt(FoundFiles[i]), ResourceFileExtensions)) and //File extension is a resource file
+         (CompletedDirs.IndexOf(ExtractFilePath(FoundFiles[i])) = -1) then       //And isnt in a dir where we've already found a version string in a file
+      begin
+        ResfileString := ExtractStringFromResourceFiles( ExtractFilePath(FoundFiles[i]), extractfilename(FoundFiles[i]));
+        if ResfileString > '' then
+        begin
+          CompletedDirs.Add( ExtractFilePath(FoundFiles[i]));
+          //log(ExtractFilePath(FoundFiles[i]));
+          //log(ResfileString);
+          ExeFiles.Add(ExtractFilePath(FoundFiles[i])) ;//+ ' ' + ResfileString);
+          //Application.ProcessMessages;
+        end;
+      end;
+
+    end;
+  finally
+    CompletedDirs.Free;
+    FoundFiles.Free;
+  end;
+
+  Log(ExeFiles.Text);
+
+  AdvStringGrid1.RowCount := ExeFiles.Count +1;
+  AdvStringGrid1.Cols[0].AddStrings(ExeFiles);
+
+  Log('...done. ' + inttostr(ExeFiles.Count) + ' found.');
+end;
+
+function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
+var
+  i, j, foundoffset, blocksize: integer;
   MemStream: TExplorerMemoryStream;
-  FoundFiles, FoundStrings: TStringList;
+  FoundFiles: TStringList;
   ParentDir: string;
 begin
    {For V5 and above resource files should always have the same name as the exe with a different extension eg monkey2.001
@@ -389,11 +453,9 @@ begin
 
   FoundFiles:= nil;
   MemStream := nil;
-  FoundStrings := nil;
   try
     FoundFiles := TStringList.Create;
     MemStream := TExplorerMemoryStream.Create;
-    FoundStrings := TStringList.Create;
 
     for i := 0 to length(ResourceFileExtensions) -1 do
     begin
@@ -404,14 +466,8 @@ begin
 
       for j := 0 to FoundFiles.Count -1 do
       begin
-        FoundStrings.Clear;
         MemStream.Clear;
         MemStream.LoadFromFile(Path + FoundFiles[j]);
-
-        {if ResourceFileExtensions[i] = '.LA0' then
-          MemStream.SetXORVal($0)
-        else
-          MemStream.SetXORVal($69);}
 
         //>=V7 Full Throttle, The Dig, CMI
         if ResourceFileExtensions[i] = '.LA0' then
@@ -427,79 +483,18 @@ begin
           end;
         end;
 
+        //log('File num: ' +(IntToStr( j)));
+
         //DISK.LEC and .LFL Files. Search the entire file for strings.
         Result := SearchStreamForValidVersionString(MemStream, $69);
         if Result = '' then
           Result := SearchStreamForValidVersionString(MemStream, $FF); //Last crusade ega uses 0xFF
         if Result = '' then
           Result := SearchStreamForValidVersionString(MemStream, $0); //Last crusade VGA is not xor'ed
-
-        if Result <> '' then exit;
-
-
-        //DISK.LEC and .LFL Files. Search the entire file for strings.
-        {foundoffset := 0;
-        while foundoffset <> -1 do
-        begin
-          foundoffset := FindFileHeader(MemStream, foundoffset, MemStream.Size, #$27#$01); //These hex values preceed strings in the scripts
-          if foundoffset > 0 then
-          begin
-            MemStream.Position := foundoffset;
-            FoundStrings.Add(MemStream.ReadNullTerminatedString(100));
-            foundoffset := MemStream.Position; //Update pointer with where we are after reading the string
-          end;
-        end;
-
-        //Last crusade uses 0xFF so if nothing has been found try with FF
-        if FoundStrings.Count = 0 then
-        begin                                    //Last crusade 76.lfl
-          MemStream.SetXORVal($FF);
-          foundoffset := 0;
-          while foundoffset <> -1 do
-          begin
-            foundoffset := FindFileHeader(MemStream, foundoffset, MemStream.Size, #$27#$01); //These hex values preceed strings in the scripts
-            if foundoffset > 0 then
-            begin
-              MemStream.Position := foundoffset;
-              FoundStrings.Add(MemStream.ReadNullTerminatedString(100));
-              foundoffset := MemStream.Position; //Update pointer with where we are after reading the string
-            end;
-          end;
-        end;
-
-        //Last crusade VGA is not xor'ed
-        if FoundStrings.Count = 0 then
-        begin
-          MemStream.SetXORVal($00);
-          foundoffset := 0;
-          while foundoffset <> -1 do
-          begin
-            foundoffset := FindFileHeader(MemStream, foundoffset, MemStream.Size, #$27#$01); //These hex values preceed strings in the scripts
-            if foundoffset > 0 then
-            begin
-              MemStream.Position := foundoffset;
-              FoundStrings.Add(MemStream.ReadNullTerminatedString(100));
-              foundoffset := MemStream.Position; //Update pointer with where we are after reading the string
-            end;
-          end;
-        end; }
-
-        //Now do regex to get the string we want. Search for date strings.     //[0-3]?[0-9].[0-3]?[0-9].(?:[0-9]{2})?[0-9]{2}'
-        //for k := 0 to FoundStrings.Count -1 do
-        //begin
-        //  if TRegEx.IsMatch(FoundStrings[k], '[0-3]?[0-9].[0-3]?[0-9][\.\/-](?:[0-9]{2})?[0-9]{2}', [roNone]) then
-        //  begin
-       //     result := GetAlphaSubstr2(FoundStrings[k]);
-       //     if result[1] = '''' then  //First character of many is '
-       //       delete(result, 1, 1);
-            //log(result);
-       //     Exit;
-       //   end;
-       // end;
+        if Result <> '' then exit;   //We found a valid string, dont scan any other files
       end;
     end;
   finally
-    FoundStrings.Free;
     MemStream.Free;
     FoundFiles.Free;
   end;
@@ -584,7 +579,7 @@ begin
         foundoffset := TheStream.Position; //Update pointer with where we are after reading the string
       end;
     end;
-
+       //Log(FoundStrings.Text);
     //Now do regex to get the string we want. Search for date strings.     //[0-3]?[0-9].[0-3]?[0-9].(?:[0-9]{2})?[0-9]{2}'
     for i := 0 to FoundStrings.Count -1 do
     begin

@@ -228,7 +228,7 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 176
+    FixedColWidth = 165
     FixedRowHeight = 22
     FixedFont.Charset = DEFAULT_CHARSET
     FixedFont.Color = 3881787
@@ -287,15 +287,15 @@ object frmMain: TfrmMain
     Version = '8.6.4.2'
     ExplicitWidth = 993
     ColWidths = (
-      176
-      114
-      92
-      109
-      89
-      62
-      91
-      149
-      185)
+      165
+      103
+      81
+      98
+      78
+      51
+      80
+      138
+      273)
   end
   object Panel1: TPanel
     Left = 0
@@ -316,7 +316,7 @@ object frmMain: TfrmMain
       WordWrap = True
     end
     object btnSave: TButton
-      Left = 408
+      Left = 936
       Top = 8
       Width = 121
       Height = 45
@@ -325,6 +325,15 @@ object frmMain: TfrmMain
       Images = ImageList1
       TabOrder = 0
       OnClick = btnSaveClick
+    end
+    object btnScanResourceFiles: TButton
+      Left = 360
+      Top = 6
+      Width = 121
+      Height = 47
+      Caption = 'Scan resource files'
+      TabOrder = 1
+      OnClick = btnScanResourceFilesClick
     end
   end
   object btnChooseFolder: TButton
