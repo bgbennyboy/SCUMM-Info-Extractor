@@ -52,10 +52,10 @@ object frmMain: TfrmMain
       'Date+Time'
       'CRC32'
       'MD5'
-      'From resource files'
-      'Interpreter Output')
+      'Interpreter Output'
+      'In resource files')
     ColumnSize.Stretch = True
-    ColumnSize.StretchColumn = 8
+    ColumnSize.StretchColumn = 7
     ColumnSize.SynchWithGrid = True
     ControlLook.FixedGradientFrom = clWhite
     ControlLook.FixedGradientTo = clWhite
@@ -154,6 +154,7 @@ object frmMain: TfrmMain
     SearchFooter.ResultFormat = '(%d of %d)'
     SelectionColor = 13744549
     ShowDesignHelper = False
+    SizeWithForm = True
     SortSettings.Column = 1
     SortSettings.Show = True
     SortSettings.FixedCols = True
@@ -174,9 +175,9 @@ object frmMain: TfrmMain
       93
       73
       45
-      75
-      134
-      334)
+      73
+      322
+      148)
   end
   object Panel1: TPanel
     Left = 0

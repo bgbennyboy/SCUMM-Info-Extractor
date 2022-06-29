@@ -318,7 +318,7 @@ begin
           if fileexists('outputs\out' + inttostr(value) + '.txt') then
           begin
             OutText := Trim( TFile.ReadAllText('outputs\out' + inttostr(value) + '.txt') );  //Read the output
-            AdvStringGrid1.AllCells[8, value+1] := OutText;
+            AdvStringGrid1.AllCells[7, value+1] := OutText;
 
             //Ignore this exe if in ignore array
             if MatchText(extractfilename(ExeFiles[value]), ExesToExclude) then
@@ -425,12 +425,12 @@ begin
           begin
             //Now check if its the same full path. Check dir in column 0
             if ExtractFilePath(AdvStringGrid1.AllCells[0, foundindex]) = ExtractFilePath(FoundFiles[i]) then //Add item
-              AdvStringGrid1.AllCells[7, foundindex] :=  ResfileString;
+              AdvStringGrid1.AllCells[8, foundindex] :=  ResfileString;
           end
           else //add it as a new row
           begin
             AdvStringGrid1.AddRow;
-            AdvStringGrid1.AllCells[7, AdvStringGrid1.LastRow] := ResfileString;
+            AdvStringGrid1.AllCells[8, AdvStringGrid1.LastRow] := ResfileString;
             AdvStringGrid1.AllCells[0, AdvStringGrid1.LastRow] := ExtractFilePath(FoundFiles[i]);
             AdvStringGrid1.AllCells[1, AdvStringGrid1.LastRow] := ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i])));
           end;
