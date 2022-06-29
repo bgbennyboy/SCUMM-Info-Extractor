@@ -10,30 +10,31 @@ uses
   System.StrUtils,
   JCLFileUtils, JCLShell, JclStrings,
   OtlTask, OtlCollections, OtlParallel, OtlSync, tmsAdvGridExcel,
-  uMemReader;
+  uMemReader, AdvGlowButton, JvExStdCtrls, JvRichEdit;
 
 type
   TfrmMain = class(TForm)
     FileOpenDialog1: TFileOpenDialog;
-    memoLog: TAdvMemo;
     AdvStringGrid1: TAdvStringGrid;
     Panel1: TPanel;
-    Label1: TLabel;
-    btnChooseFolder: TButton;
     ImageList1: TImageList;
-    btnSave: TButton;
     FileSaveDialog1: TFileSaveDialog;
     AdvGridExcelIO1: TAdvGridExcelIO;
-    btnScanResourceFiles: TButton;
+    btnParseInterpreters: TAdvGlowButton;
+    btnScanResourceFiles: TAdvGlowButton;
+    btnExportToExcel: TAdvGlowButton;
+    memoLog: TJvRichEdit;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    procedure btnChooseFolderClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
-    procedure btnSaveClick(Sender: TObject);
     procedure AdvGridExcelIO1ExportColumnFormat(Sender: TObject; GridCol,
       GridRow, XlsCol, XlsRow: Integer; const Value: WideString;
       var ExportCellAsString: Boolean);
+    procedure btnParseInterpretersClick(Sender: TObject);
     procedure btnScanResourceFilesClick(Sender: TObject);
+    procedure btnExportToExcelClick(Sender: TObject);
+    procedure AdvStringGrid1GetCellColor(Sender: TObject; ARow, ACol: Integer;
+      AState: TGridDrawState; ABrush: TBrush; AFont: TFont);
   private
     { Private declarations }
     ExeFiles: TStringList;
@@ -65,7 +66,7 @@ const
     'T_OAK2.EXE','WEBSITE.EXE','_ISDEL.EXE');
 var
   frmMain: TfrmMain;
-  loop : IOmniParallelLoop<integer>;
+  InterpretersLoop : IOmniParallelLoop<integer>;
   cancelToken: IOmniCancellationToken;
 
 implementation
@@ -215,15 +216,33 @@ begin
   ExportCellAsString  := true;
 end;
 
-procedure TfrmMain.btnChooseFolderClick(Sender: TObject);
+
+procedure TfrmMain.AdvStringGrid1GetCellColor(Sender: TObject; ARow,
+  ACol: Integer; AState: TGridDrawState; ABrush: TBrush; AFont: TFont);
+begin
+  if ARow = 0 then exit;  //Header row
+
+  if (IsExeInvalid(AdvStringGrid1.AllCells[Acol, ARow])) and (AdvStringGrid1.AllCells[Acol, Arow] = '') then
+    ABrush.Color := InvalidColour;
+end;
+
+procedure TfrmMain.btnExportToExcelClick(Sender: TObject);
+begin
+  if FileSaveDialog1.Execute = false then exit;
+
+  //AdvStringGrid1.SaveToXLS(FileSaveDialog1.FileName);
+  advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters')
+end;
+
+procedure TfrmMain.btnParseInterpretersClick(Sender: TObject);
 var
   i: Integer;
 begin
   //Is a cancel button if task assigned and begun
-  if assigned(loop) then
+  if assigned(InterpretersLoop) then
   begin
     cancelToken.Signal;
-    btnChooseFolder.Enabled := false;
+    btnParseInterpreters.Enabled := false;
     exit;
   end;
 
@@ -257,29 +276,31 @@ begin
 
   Log('Please wait, running interpreters and parsing their output, this will take a while.');
 
-  btnChooseFolder.ImageIndex := 3;
-  btnChooseFolder.Caption := 'Cancel';
+  btnParseInterpreters.ImageIndex := 0;
+  btnParseInterpreters.Caption := 'Cancel';
   cancelToken := CreateOmniCancellationToken;
-  btnSave.Enabled :=false;
-  loop := Parallel.ForEach(0, ExeFiles.Count -1);
+  btnExportToExcel.Enabled :=false;
+  btnScanResourceFiles.Enabled := false;
+  InterpretersLoop := Parallel.ForEach(0, ExeFiles.Count -1);
   //loop.PreserveOrder;
-  loop.CancelWith(cancelToken);
-  loop.OnStopInvoke(
+  InterpretersLoop.CancelWith(cancelToken);
+  InterpretersLoop.OnStopInvoke(
     procedure
     begin
       log('Scanning finished.');
-      log('Raw outputs can be found at ' + ExtractFilePath(Application.ExeName) + 'outputs\');
+      log('Raw .exe outputs can be found at ' + ExtractFilePath(Application.ExeName) + 'outputs\');
       AdvStringGrid1.ColumnSize.StretchColumn := AdvStringGrid1.ColCount; //make last column the stretch one
       beep;
-      loop := nil;
+      InterpretersLoop := nil;
       cancelToken.Clear;
-      btnChooseFolder.ImageIndex := 0;
-      btnChooseFolder.Caption := 'Choose a folder';
-      btnChooseFolder.Enabled := true;
-      btnSave.Enabled := True;
+      btnParseInterpreters.ImageIndex := 2;
+      btnParseInterpreters.Caption := 'Parse interpreters';
+      btnParseInterpreters.Enabled := true;
+      btnScanResourceFiles.Enabled := true;
+      btnExportToExcel.Enabled := True;
     end
   );
-  loop.NoWait.Execute(
+  InterpretersLoop.NoWait.Execute(
     procedure (const task: IOmniTask; const value: integer)
     begin
       //log(inttostr(value));
@@ -310,8 +331,8 @@ begin
 
 
             //Parse resource files and try and extract version+date from the scripts
-            resfilestring := ExtractStringFromResourceFiles( ExtractFilePath(ExeFiles[value]), extractfilename(ExeFiles[value]));
-            AdvStringGrid1.AllCells[7, value+1] := resfilestring;
+            //resfilestring := ExtractStringFromResourceFiles( ExtractFilePath(ExeFiles[value]), extractfilename(ExeFiles[value]));
+            //AdvStringGrid1.AllCells[7, value+1] := resfilestring;
 
             firstline := StrBefore(sLineBreak, OutText);
             firstline := firstline + sLineBreak; //Add the linebreak back in, we search for it later
@@ -337,11 +358,11 @@ begin
           //else Log(ExeFiles[value]);
 
           //Invalid exe
-          if ((OutText.Length = 0) or (IsExeInvalid(OutText))) and (resfilestring = '') then
-          begin
+          //if ({(OutText.Length = 0) or} (IsExeInvalid(OutText))) and (resfilestring = '') then
+         { begin
             for i := 0 to (AdvStringGrid1.ColCount -1) do
-              AdvStringGrid1.Colors[i, value+1] := InvalidColour;//0000009F;
-          end;
+              AdvStringGrid1.Colors[i, value+1] := InvalidColour;
+          end; }
 
 
           GetFileChecksums( ExeFiles[value], CRC32, MD5 );
@@ -355,27 +376,20 @@ begin
   );
   log('Scanning started.');
 
+
 end;
 
-procedure TfrmMain.btnSaveClick(Sender: TObject);
-begin
-  if FileSaveDialog1.Execute = false then exit;
-
-  //AdvStringGrid1.SaveToXLS(FileSaveDialog1.FileName);
-  advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters')
-end;
 
 procedure TfrmMain.btnScanResourceFilesClick(Sender: TObject);
 var
-  i: integer;
+  i, foundindex: integer;
   FoundFiles, CompletedDirs: TStringList;
   ResfileString: string;
 begin
   if FileOpenDialog1.Execute = false then
     exit;
 
-  Log('Searching for resources files in ' + FileOpenDialog1.FileName);
-
+  Log('Searching for resource files in dir and subdirs of ' + FileOpenDialog1.FileName);
   FoundFiles  := nil;
   CompletedDirs := nil;
   try
@@ -387,42 +401,72 @@ begin
       Exit;
     end;
 
-    //Then parse the list only scanning files we want
-    //Only add to the grid actual resource files with the string
-    //Maybe list files into a different list and add proper ones to exefiles list once they've found a version string in there
-    //Need to exclude other files in that dir once a version string found   . Perhaps keep a list of dirs we've covered and if its in there then skip it. That would allow for subdirs with different stuff in. Just check the actual dir for the file.
-    //Dont clear grid when clicking buttons - need a clear button then.
-    //Need to merge results with whats already in the grid.
+    Log('...done. ');
     Log('Please wait, scanning resource files for version information, this will take a while.');
 
+    btnParseInterpreters.Enabled := false;
+    btnScanResourceFiles.Enabled := false;
+    btnExportToExcel.Enabled := false;
+
+    //Scan all the files found, first see if the file extension matches one of the ones we are looking for
     for i := 0 to FoundFiles.Count -1 do
     begin
       if (MatchText(ExtractFileExt(FoundFiles[i]), ResourceFileExtensions)) and //File extension is a resource file
-         (CompletedDirs.IndexOf(ExtractFilePath(FoundFiles[i])) = -1) then       //And isnt in a dir where we've already found a version string in a file
+         (CompletedDirs.IndexOf(ExtractFilePath(FoundFiles[i])) = -1) then      //And isnt in a dir where we've already found a version string in a file
       begin
         ResfileString := ExtractStringFromResourceFiles( ExtractFilePath(FoundFiles[i]), extractfilename(FoundFiles[i]));
         if ResfileString > '' then
         begin
           CompletedDirs.Add( ExtractFilePath(FoundFiles[i]));
-          //log(ExtractFilePath(FoundFiles[i]));
-          //log(ResfileString);
-          ExeFiles.Add(ExtractFilePath(FoundFiles[i])) ;//+ ' ' + ResfileString);
-          //Application.ProcessMessages;
+
+          //Does this dir already exist in the table? Check the basic dir in column 1
+          foundindex := AdvStringGrid1.Cols[1].IndexOf( ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i]))));
+          if foundindex <> -1 then
+          begin
+            //Now check if its the same full path. Check dir in column 0
+            if ExtractFilePath(AdvStringGrid1.AllCells[0, foundindex]) = ExtractFilePath(FoundFiles[i]) then //Add item
+              AdvStringGrid1.AllCells[7, foundindex] :=  ResfileString;
+          end
+          else //add it as a new row
+          begin
+            AdvStringGrid1.AddRow;
+            AdvStringGrid1.AllCells[7, AdvStringGrid1.LastRow] := ResfileString;
+            AdvStringGrid1.AllCells[0, AdvStringGrid1.LastRow] := ExtractFilePath(FoundFiles[i]);
+            AdvStringGrid1.AllCells[1, AdvStringGrid1.LastRow] := ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i])));
+          end;
+          AdvStringGrid1.AutoSizeRows(false, 0); //Resize the rows
         end;
       end;
-
+      application.ProcessMessages; //Horrible, but it'll do for now
     end;
+
+    //Colour invalid items
+    {for I := 1 to AdvStringGrid1.RowCount -1 do //first row is headers
+    begin
+      if  (IsExeInvalid(AdvStringGrid1.AllCells[8, i])) and (AdvStringGrid1.AllCells[8, i] = '') then
+      begin
+        //for j := 0 to (AdvStringGrid1.ColCount -1) do
+        //  AdvStringGrid1.Colors[j, i] := InvalidColour;
+      end;
+    end;}
+
+
+    {if  (IsExeInvalid(OutText)) and (resfilestring = '') then
+    begin
+      for i := 0 to (AdvStringGrid1.ColCount -1) do
+        AdvStringGrid1.Colors[i, value+1] := InvalidColour;
+    end }
+
+
+    log('Scanning finished.');
+    beep;
   finally
     CompletedDirs.Free;
     FoundFiles.Free;
+    btnParseInterpreters.Enabled := true;
+    btnScanResourceFiles.Enabled := true;
+    btnExportToExcel.Enabled := True;
   end;
-
-  Log(ExeFiles.Text);
-
-  AdvStringGrid1.RowCount := ExeFiles.Count +1;
-  AdvStringGrid1.Cols[0].AddStrings(ExeFiles);
-
-  Log('...done. ' + inttostr(ExeFiles.Count) + ' found.');
 end;
 
 function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
@@ -435,14 +479,15 @@ begin
    {For V5 and above resource files should always have the same name as the exe with a different extension eg monkey2.001
    lflxx and diskxx files are always the same name.
 
-   For V7 and above - version strins is in the index file - in the MAXS block.
+   For V7 and above - version string is in the index file - in the MAXS block.
     So find MAXS, next 4 bytes BE is blocksize, read blocksize-8 as a string and then trim it.
 
    For LFL and DISK.LEC files - 0x 2701 seems to be an identifier for start of a string - then null terminated string after that.
     Diskxx.LEC files - version string is usually in disk01.lec
     *.lfl files - version string could be in any lfl file
 
-   For .000 .001 files - version string in the .001 file. What about amiga, mac where it can be .003, 004 etc?}
+   For .000 .001 files - version string in the .001 file.
+   What about amiga, mac where it can be .003, 004 etc? Still in the .001 file?}
 
   result :='';
 
@@ -548,13 +593,9 @@ end;
 procedure TfrmMain.Log(LogItem: String);
 begin
   memoLog.Lines.Add(LogItem);
-  memoLog.GotoEnd;
+  //memoLog.GotoEnd;
   //SendMessage(RichEditMemo.Handle, WM_VSCROLL, SB_LINEDOWN, 0);
 end;
-
-
-
-
 
 
 function TfrmMain.SearchStreamForValidVersionString(
