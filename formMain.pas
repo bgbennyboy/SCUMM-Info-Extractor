@@ -58,7 +58,7 @@ type
 
 const
   InvalidColour = $003743ED;
-
+  DosboxExe = 'dosbox-staging\dosbox.exe';
   ResourceFileExtensions: array [0..3] of string = ('.LA0', '.LEC', '.LFL', '.001');
 
   ExesToExclude: array[0..52] of string =
@@ -319,7 +319,7 @@ begin
     begin
       //log(inttostr(value));
       //If there's errors in future its dos 8.3 filenames eg outputs\outxx.txt it just under the limit when it was outputxx anying above 99 got ignored.
-      ExecuteProcess(ExtractFilePath(Application.ExeName) + 'dosbox-staging\dosbox.exe', '-noconsole -c "mount d ." -c "mount C ''' + ExtractFilePath(ExeFiles[value]) + '''" -c "c:" -c "' + extractfilename(ExtractShortPathName(ExeFiles[value])) + ' /? >d:\outputs\out' + inttostr(value) + '.txt" -exit', '', True, 8000, 0);
+      ExecuteProcess(ExtractFilePath(Application.ExeName) + DosboxExe, '-noconsole -c "mount d ." -c "mount C ''' + ExtractFilePath(ExeFiles[value]) + '''" -c "c:" -c "' + extractfilename(ExtractShortPathName(ExeFiles[value])) + ' /? >d:\outputs\out' + inttostr(value) + '.txt" -exit', '', True, 8000, 0);
       if task.CancellationToken.IsSignalled then exit;
 
       task.Invoke(
@@ -541,6 +541,12 @@ procedure TfrmMain.FormCreate(Sender: TObject);
 begin
   ExeFiles := TStringList.Create;
   fHideRows := false;
+
+  if FileExists(ExtractFilePath(Application.ExeName) + DosboxExe) = False then
+  begin
+    ShowMessage('Dosbox exe not found! Closing...');
+    Application.Terminate;
+  end;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
