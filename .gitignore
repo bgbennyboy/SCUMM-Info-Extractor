@@ -69,12 +69,7 @@ __recovery/
 modules/
 
 Other/
-Win32/Debug/outputs/
+Win32/Debug/
 Win32/Release/
-Win32/Debug/stderr.txt
-Win32/Debug/stdout.txt
 Dosbox command.txt
 
-
-Win32/Debug/dosbox-staging/*
-!Win32/Debug/dosbox-staging/dosbox-staging.conf
