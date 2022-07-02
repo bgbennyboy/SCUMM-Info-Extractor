@@ -6,11 +6,11 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Grids,
   System.ImageList, Vcl.ImgList,  Vcl.ExtCtrls, IOUtils, System.Hash, IdHashCRC,
-  AdvMemo, AdvObj, AdvGrid, AdvUtil, BaseGrid, System.RegularExpressions,  System.Character,
+  AdvObj, AdvGrid, BaseGrid, System.RegularExpressions,  System.Character,
   System.StrUtils,
   JCLFileUtils, JCLShell, JclStrings,
   OtlTask, OtlCollections, OtlParallel, OtlSync, tmsAdvGridExcel,
-  uMemReader, AdvGlowButton, JvExStdCtrls, JvRichEdit;
+  uMemReader, AdvGlowButton, JvExStdCtrls, JvRichEdit, AdvUtil;
 
 type
   TfrmMain = class(TForm)
@@ -24,6 +24,7 @@ type
     btnScanResourceFiles: TAdvGlowButton;
     btnExportToExcel: TAdvGlowButton;
     memoLog: TJvRichEdit;
+    btnHideInvalid: TAdvGlowButton;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -35,14 +36,19 @@ type
     procedure btnExportToExcelClick(Sender: TObject);
     procedure AdvStringGrid1GetCellColor(Sender: TObject; ARow, ACol: Integer;
       AState: TGridDrawState; ABrush: TBrush; AFont: TFont);
+    procedure btnHideInvalidClick(Sender: TObject);
   private
     { Private declarations }
+    fHideRows: Boolean;
     ExeFiles: TStringList;
     function IsExeInvalid(OutputText: string): boolean;
+    function IsRowInvalid(aRow: integer): boolean;
     function ExtractStringFromResourceFiles(Path, Exename: string): string;
     function SearchStreamForValidVersionString(TheStream: TExplorerMemoryStream; XORVal: Byte): string;
     procedure GetFileChecksums(TheFile: string; var CRC: string; var MD5: string);
     procedure Log(LogItem: String);
+    procedure HideInvalidRows();
+    procedure EnableDisableButtons(Value: boolean);
   public
     { Public declarations }
   end;
@@ -222,7 +228,9 @@ procedure TfrmMain.AdvStringGrid1GetCellColor(Sender: TObject; ARow,
 begin
   if ARow = 0 then exit;  //Header row
 
-  if (IsExeInvalid(AdvStringGrid1.AllCells[Acol, ARow])) and (AdvStringGrid1.AllCells[Acol, Arow] = '') then
+  if AdvStringGrid1.IsHiddenRow(ARow) then exit; //Dont colour hidden rows, it'll colour the next visible one instead
+
+  if IsRowInvalid(ARow) then
     ABrush.Color := InvalidColour;
 end;
 
@@ -230,8 +238,12 @@ procedure TfrmMain.btnExportToExcelClick(Sender: TObject);
 begin
   if FileSaveDialog1.Execute = false then exit;
 
-  //AdvStringGrid1.SaveToXLS(FileSaveDialog1.FileName);
-  advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters')
+  advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters');
+end;
+
+procedure TfrmMain.btnHideInvalidClick(Sender: TObject);
+begin
+  HideInvalidRows;
 end;
 
 procedure TfrmMain.btnParseInterpretersClick(Sender: TObject);
@@ -279,10 +291,9 @@ begin
   btnParseInterpreters.ImageIndex := 0;
   btnParseInterpreters.Caption := 'Cancel';
   cancelToken := CreateOmniCancellationToken;
-  btnExportToExcel.Enabled :=false;
-  btnScanResourceFiles.Enabled := false;
+  EnableDisableButtons(False);
+  btnParseInterpreters.Enabled := True;
   InterpretersLoop := Parallel.ForEach(0, ExeFiles.Count -1);
-  //loop.PreserveOrder;
   InterpretersLoop.CancelWith(cancelToken);
   InterpretersLoop.OnStopInvoke(
     procedure
@@ -295,9 +306,7 @@ begin
       cancelToken.Clear;
       btnParseInterpreters.ImageIndex := 2;
       btnParseInterpreters.Caption := 'Parse interpreters';
-      btnParseInterpreters.Enabled := true;
-      btnScanResourceFiles.Enabled := true;
-      btnExportToExcel.Enabled := True;
+      EnableDisableButtons(True);
     end
   );
   InterpretersLoop.NoWait.Execute(
@@ -311,9 +320,8 @@ begin
       task.Invoke(
         procedure
         var
-          outtext, firstline, versionstring, datetimestring, resfilestring: string;
+          outtext, firstline, versionstring, datetimestring: string;
           CRC32, MD5: string;
-          i: integer;
         begin
           if fileexists('outputs\out' + inttostr(value) + '.txt') then
           begin
@@ -322,17 +330,7 @@ begin
 
             //Ignore this exe if in ignore array
             if MatchText(extractfilename(ExeFiles[value]), ExesToExclude) then
-            begin
-              for i := 0 to (AdvStringGrid1.ColCount -1) do
-                AdvStringGrid1.Colors[i, value+1] := InvalidColour;
-
               exit;
-            end;
-
-
-            //Parse resource files and try and extract version+date from the scripts
-            //resfilestring := ExtractStringFromResourceFiles( ExtractFilePath(ExeFiles[value]), extractfilename(ExeFiles[value]));
-            //AdvStringGrid1.AllCells[7, value+1] := resfilestring;
 
             firstline := StrBefore(sLineBreak, OutText);
             firstline := firstline + sLineBreak; //Add the linebreak back in, we search for it later
@@ -356,14 +354,6 @@ begin
             AdvStringGrid1.AllCells[4, value+1] := datetimestring;
           end;
           //else Log(ExeFiles[value]);
-
-          //Invalid exe
-          //if ({(OutText.Length = 0) or} (IsExeInvalid(OutText))) and (resfilestring = '') then
-         { begin
-            for i := 0 to (AdvStringGrid1.ColCount -1) do
-              AdvStringGrid1.Colors[i, value+1] := InvalidColour;
-          end; }
-
 
           GetFileChecksums( ExeFiles[value], CRC32, MD5 );
           AdvStringGrid1.AllCells[5, value+1] := CRC32;
@@ -389,6 +379,9 @@ begin
   if FileOpenDialog1.Execute = false then
     exit;
 
+  if fHideRows = true then //Show hidden rows so we can populate them if necessary
+    btnHideInvalid.Click;
+
   Log('Searching for resource files in dir and subdirs of ' + FileOpenDialog1.FileName);
   FoundFiles  := nil;
   CompletedDirs := nil;
@@ -404,9 +397,7 @@ begin
     Log('...done. ');
     Log('Please wait, scanning resource files for version information, this will take a while.');
 
-    btnParseInterpreters.Enabled := false;
-    btnScanResourceFiles.Enabled := false;
-    btnExportToExcel.Enabled := false;
+    EnableDisableButtons(False);
 
     //Scan all the files found, first see if the file extension matches one of the ones we are looking for
     for i := 0 to FoundFiles.Count -1 do
@@ -440,33 +431,21 @@ begin
       application.ProcessMessages; //Horrible, but it'll do for now
     end;
 
-    //Colour invalid items
-    {for I := 1 to AdvStringGrid1.RowCount -1 do //first row is headers
-    begin
-      if  (IsExeInvalid(AdvStringGrid1.AllCells[8, i])) and (AdvStringGrid1.AllCells[8, i] = '') then
-      begin
-        //for j := 0 to (AdvStringGrid1.ColCount -1) do
-        //  AdvStringGrid1.Colors[j, i] := InvalidColour;
-      end;
-    end;}
-
-
-    {if  (IsExeInvalid(OutText)) and (resfilestring = '') then
-    begin
-      for i := 0 to (AdvStringGrid1.ColCount -1) do
-        AdvStringGrid1.Colors[i, value+1] := InvalidColour;
-    end }
-
-
     log('Scanning finished.');
     beep;
   finally
     CompletedDirs.Free;
     FoundFiles.Free;
-    btnParseInterpreters.Enabled := true;
-    btnScanResourceFiles.Enabled := true;
-    btnExportToExcel.Enabled := True;
+    EnableDisableButtons(True);
   end;
+end;
+
+procedure TfrmMain.EnableDisableButtons(Value: boolean);
+begin
+  btnParseInterpreters.Enabled := Value;
+  btnScanResourceFiles.Enabled := Value;
+  btnExportToExcel.Enabled := Value;
+  btnHideInvalid.Enabled := Value;
 end;
 
 function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
@@ -554,6 +533,7 @@ end;
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
   ExeFiles := TStringList.Create;
+  fHideRows := false;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -583,6 +563,39 @@ begin
   MD5 := UpperCase(THashMD5.GetHashStringFromFile( TheFile ))
 end;
 
+procedure TfrmMain.HideInvalidRows;
+var
+  i: integer;
+  il: TIntList;
+begin
+    if fHideRows = false then
+    begin
+    //Create list of rows to hide
+    il := TIntList.Create(-1,-1);
+    try
+      for I := 0 to AdvStringGrid1.AllRowCount -1 do
+      begin
+        if IsRowInvalid(i) then
+          il.add(i);
+      end;
+
+      AdvStringGrid1.HideRowList(il);
+    finally
+      il.Free;
+      fHideRows := True;
+      btnHideInvalid.ImageIndex := 8;
+      btnHideInvalid.Caption := 'Show invalid items';
+    end;
+  end
+  else
+  begin
+    AdvStringGrid1.UnHideRowList;
+    fHideRows := false;
+    btnHideInvalid.ImageIndex := 7;
+    btnHideInvalid.Caption := 'Hide invalid items';
+  end;
+end;
+
 function TfrmMain.IsExeInvalid(OutputText: string): boolean;
 const
   InvalidStringsBeginning: array [0..8] of string = ('UNKNOWN COMMAND LINE PARAMETER /?','INSTALL','ILLEGAL COMMAND','IMUSE(TM) CONFIGURATION UTILITY','DOS/4GW','THIS PROGRAM CANNOT BE RUN IN DOS MODE', 'STUB EXEC FAILED:', 'LHA VERSION 2', 'THIS PROGRAM REQUIRES MICROSOFT WINDOWS');
@@ -590,11 +603,18 @@ begin
   result := StrHasPrefix( UpperCase(OutputText), InvalidStringsBeginning);
 end;
 
+function TfrmMain.IsRowInvalid(aRow: integer): boolean;
+begin
+  Result := false;
+
+  if (IsExeInvalid(AdvStringGrid1.AllCells[7, ARow])) or
+    ((AdvStringGrid1.AllCells[3, Arow] = '') and (AdvStringGrid1.AllCells[8, Arow] = '')) then
+    result := true;
+end;
+
 procedure TfrmMain.Log(LogItem: String);
 begin
   memoLog.Lines.Add(LogItem);
-  //memoLog.GotoEnd;
-  //SendMessage(RichEditMemo.Handle, WM_VSCROLL, SB_LINEDOWN, 0);
 end;
 
 
