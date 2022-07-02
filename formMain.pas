@@ -640,6 +640,7 @@ function TfrmMain.SearchStreamForValidVersionString(
 var
   foundoffset, i: integer;
   FoundStrings: TStringList;
+  Tempstring: string;
 begin
   result := '';
   TheStream.SetXORVal(XORVal);
@@ -670,6 +671,35 @@ begin
         Exit;
       end;
     end;
+
+    //Loom has to be awkward
+    foundoffset := 0;
+    while foundoffset <> -1 do
+    begin
+      foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$01#$8F);
+      if foundoffset > 0 then
+      begin
+        TheStream.Position := foundoffset;
+        Tempstring := TheStream.ReadNullTerminatedString(30);
+        Tempstring := Tempstring + TheStream.ReadNullTerminatedString(30); //Loom has version string null terminated and then date as separate null terminated, so have to read both and concatenate
+        FoundStrings.Add(Tempstring);
+        foundoffset := TheStream.Position; //Update pointer with where we are after reading the string
+      end;
+    end;
+
+    //Search for date strings '.LOOM]^ 1.0 (..).) 8 Mar 90.'
+    for i := 0 to FoundStrings.Count -1 do
+    begin
+      if TRegEx.IsMatch(FoundStrings[i], '(\b\d{1,2}\D{0,3})?\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|(Nov|Dec)(?:ember)?)\D?(\d{1,2}(st|nd|rd|th)?)?(([,.\-\/])\D?)?((19[7-9]\d|20\d{2})|\d{2})*', [roNone]) then
+      begin
+        result := GetAlphaSubstr2(FoundStrings[i]);
+        if result[1] = '''' then  //First character of many is '
+          delete(result, 1, 1);
+        //log(result);
+        Exit;
+      end;
+    end;
+
   finally
     FoundStrings.Free;
   end;
