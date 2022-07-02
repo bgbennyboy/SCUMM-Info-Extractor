@@ -10,7 +10,8 @@ uses
   System.StrUtils,
   JCLFileUtils, JCLShell, JclStrings,
   OtlTask, OtlCollections, OtlParallel, OtlSync, tmsAdvGridExcel,
-  uMemReader, AdvGlowButton, JvExStdCtrls, JvRichEdit, AdvUtil;
+  uMemReader, AdvGlowButton, JvExStdCtrls, JvRichEdit, AdvUtil, JvExControls,
+  JvAnimatedImage, JvGIFCtrl;
 
 type
   TfrmMain = class(TForm)
@@ -25,6 +26,7 @@ type
     btnExportToExcel: TAdvGlowButton;
     memoLog: TJvRichEdit;
     btnHideInvalid: TAdvGlowButton;
+    JvGIFAnimator1: TJvGIFAnimator;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -49,6 +51,7 @@ type
     procedure Log(LogItem: String);
     procedure HideInvalidRows();
     procedure EnableDisableButtons(Value: boolean);
+    procedure ShowProgressAnimation(Value: Boolean);
   public
     { Public declarations }
   end;
@@ -293,6 +296,7 @@ begin
   cancelToken := CreateOmniCancellationToken;
   EnableDisableButtons(False);
   btnParseInterpreters.Enabled := True;
+  ShowProgressAnimation(True);
   InterpretersLoop := Parallel.ForEach(0, ExeFiles.Count -1);
   InterpretersLoop.CancelWith(cancelToken);
   InterpretersLoop.OnStopInvoke(
@@ -306,6 +310,7 @@ begin
       cancelToken.Clear;
       btnParseInterpreters.ImageIndex := 2;
       btnParseInterpreters.Caption := 'Parse interpreters';
+      ShowProgressAnimation(False);
       EnableDisableButtons(True);
     end
   );
@@ -398,6 +403,7 @@ begin
     Log('Please wait, scanning resource files for version information, this will take a while.');
 
     EnableDisableButtons(False);
+    ShowProgressAnimation(True);
 
     //Scan all the files found, first see if the file extension matches one of the ones we are looking for
     for i := 0 to FoundFiles.Count -1 do
@@ -436,6 +442,7 @@ begin
   finally
     CompletedDirs.Free;
     FoundFiles.Free;
+    ShowProgressAnimation(False);
     EnableDisableButtons(True);
   end;
 end;
@@ -607,8 +614,12 @@ function TfrmMain.IsRowInvalid(aRow: integer): boolean;
 begin
   Result := false;
 
-  if (IsExeInvalid(AdvStringGrid1.AllCells[7, ARow])) or
-    ((AdvStringGrid1.AllCells[3, Arow] = '') and (AdvStringGrid1.AllCells[8, Arow] = '')) then
+  //Nothing in resource file cell and SCUMM version cell
+  if (AdvStringGrid1.AllCells[8, Arow] = '') and (AdvStringGrid1.AllCells[3, Arow] = '') then
+    result := true;
+
+  //Invalid exe and no resource file string (COMI has 'cannot be run in dos mode' string but does have a resource file string
+  if (IsExeInvalid(AdvStringGrid1.AllCells[7, ARow])) and (AdvStringGrid1.AllCells[8, Arow] = '') then
     result := true;
 end;
 
@@ -657,6 +668,12 @@ begin
     FoundStrings.Free;
   end;
 
+end;
+
+procedure TfrmMain.ShowProgressAnimation(Value: Boolean);
+begin
+  JvGIFAnimator1.Visible := Value;
+  JvGIFAnimator1.Animate := Value;
 end;
 
 end.
