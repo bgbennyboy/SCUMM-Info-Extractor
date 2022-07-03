@@ -11,3 +11,6 @@ It searches for every resource file in the given directories. It then gets the  
 
 ### What about Maniac Mansion and Zak McKracken?
 They dont have a version string in their interpreter, or at least not one that gets output to the command line.
+
+### Why are the column widths small when exported to a spreadsheet?
+The column widths mirror what you have in the program when you press export. Before exporting it'll try and expand the output column to make that fit but otherwise the column widths will be what you see on the screen. If you're having issues maximise the window before pressing export.
