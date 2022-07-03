@@ -48,12 +48,12 @@ object frmMain: TfrmMain
       'Full Path'
       'Folder'
       'Filename'
-      'SCUMM Version'
+      'SPU(tm) Version'
       'Date+Time'
       'CRC32'
       'MD5'
       'Interpreter Output'
-      'In resource files')
+      'In Resource Files')
     ColumnSize.Stretch = True
     ColumnSize.StretchColumn = 7
     ColumnSize.SynchWithGrid = True
@@ -102,7 +102,7 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 159
+    FixedColWidth = 158
     FixedRowHeight = 22
     FixedFont.Charset = DEFAULT_CHARSET
     FixedFont.Color = 3881787
@@ -169,15 +169,15 @@ object frmMain: TfrmMain
     ExplicitWidth = 993
     ExplicitHeight = 375
     ColWidths = (
-      159
-      96
-      83
-      91
-      71
-      53
-      71
-      313
-      152)
+      158
+      95
+      82
+      109
+      75
+      52
+      70
+      294
+      154)
   end
   object Panel1: TPanel
     Left = 0
@@ -584,8 +584,6 @@ object frmMain: TfrmMain
       ScrollBars = ssVertical
       SelText = ''
       TabOrder = 3
-      ExplicitLeft = 246
-      ExplicitWidth = 847
     end
     object btnHideInvalid: TAdvGlowButton
       Left = 246
@@ -641,7 +639,6 @@ object frmMain: TfrmMain
       Appearance.TextColorHot = 2303013
       Appearance.TextColorDisabled = 13948116
       Layout = blGlyphTopAdjusted
-      ExplicitLeft = 268
     end
   end
   object FileOpenDialog1: TFileOpenDialog
@@ -2272,7 +2269,7 @@ object frmMain: TfrmMain
     Options.ExportShowInExcel = True
     Options.ExportCellMargins = True
     Options.UseExcelStandardColorPalette = False
-    UseUnicode = False
+    UseUnicode = True
     GridStartRow = 0
     GridStartCol = 0
     Version = '3.14'

@@ -240,7 +240,7 @@ end;
 procedure TfrmMain.btnExportToExcelClick(Sender: TObject);
 begin
   if FileSaveDialog1.Execute = false then exit;
-
+  AdvStringGrid1.AutoSizeCol(7); //Interpreter output sometimes gets cutoff and hidden by cell size in spreadsheet
   advgridexcelio1.XLSExport(FileSaveDialog1.FileName, 'SCUMM Interpreters');
 end;
 
@@ -305,6 +305,7 @@ begin
       log('Scanning finished.');
       log('Raw .exe outputs can be found at ' + ExtractFilePath(Application.ExeName) + 'outputs\');
       AdvStringGrid1.ColumnSize.StretchColumn := AdvStringGrid1.ColCount; //make last column the stretch one
+      AdvStringGrid1.AutoSizeRows(false, 1); //Resize the rows
       beep;
       InterpretersLoop := nil;
       cancelToken.Clear;
@@ -364,7 +365,7 @@ begin
           AdvStringGrid1.AllCells[5, value+1] := CRC32;
           AdvStringGrid1.AllCells[6, value+1] := MD5;
 
-          AdvStringGrid1.AutoSizeRows(false, 0); //Resize the rows
+          AdvStringGrid1.AutoSizeRow(value); //Resize the row to fit the text
         end
       );
     end
@@ -416,13 +417,13 @@ begin
         begin
           CompletedDirs.Add( ExtractFilePath(FoundFiles[i]));
 
-          //Does this dir already exist in the table? Check the basic dir in column 1
+          //Does this dir already exist in the table? Check the basic dir name in column 1
           foundindex := AdvStringGrid1.Cols[1].IndexOf( ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i]))));
-          if foundindex <> -1 then
+
+          //Now check if its also the same full path. Check dir in column 0
+          if (foundindex <> -1) and (ExtractFilePath(AdvStringGrid1.AllCells[0, foundindex]) = ExtractFilePath(FoundFiles[i])) then
           begin
-            //Now check if its the same full path. Check dir in column 0
-            if ExtractFilePath(AdvStringGrid1.AllCells[0, foundindex]) = ExtractFilePath(FoundFiles[i]) then //Add item
-              AdvStringGrid1.AllCells[8, foundindex] :=  ResfileString;
+            AdvStringGrid1.AllCells[8, foundindex] :=  ResfileString;
           end
           else //add it as a new row
           begin
@@ -516,7 +517,7 @@ begin
 
         //log('File num: ' +(IntToStr( j)));
 
-        //DISK.LEC and .LFL Files. Search the entire file for strings.
+        //DISK.LEC .001 and .LFL Files. Search the entire file for strings.
         Result := SearchStreamForValidVersionString(MemStream, $69);
         if Result = '' then
           Result := SearchStreamForValidVersionString(MemStream, $FF); //Last crusade ega uses 0xFF
@@ -547,6 +548,8 @@ begin
     ShowMessage('Dosbox exe not found! Closing...');
     Application.Terminate;
   end;
+
+  CreateDir('outputs');
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -653,37 +656,37 @@ begin
       foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$27#$01); //These hex values preceed strings in the scripts
       if foundoffset > 0 then
       begin
-        TheStream.Position := foundoffset;
-        FoundStrings.Add(TheStream.ReadNullTerminatedString(100));
+        TheStream.Position := foundoffset + 2;
+        FoundStrings.Add(TheStream.ReadNullTerminatedString(50));
         foundoffset := TheStream.Position; //Update pointer with where we are after reading the string
       end;
     end;
        //Log(FoundStrings.Text);
-    //Now do regex to get the string we want. Search for date strings.     //[0-3]?[0-9].[0-3]?[0-9].(?:[0-9]{2})?[0-9]{2}'
+    //Now do regex to get the string we want. Search for date strings.
     for i := 0 to FoundStrings.Count -1 do
     begin
       if TRegEx.IsMatch(FoundStrings[i], '[0-3]?[0-9].[0-3]?[0-9][\.\/-](?:[0-9]{2})?[0-9]{2}', [roNone]) then
       begin
         result := GetAlphaSubstr2(FoundStrings[i]);
-        if result[1] = '''' then  //First character of many is '
-          delete(result, 1, 1);
+        //if result[1] = '''' then  //First character of many is '
+        //  delete(result, 1, 1);
         //log(result);
         Exit;
       end;
     end;
 
-    //Loom has to be awkward
+    //Loom
     foundoffset := 0;
     while foundoffset <> -1 do
     begin
       foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$01#$8F);
       if foundoffset > 0 then
       begin
-        TheStream.Position := foundoffset;
+        TheStream.Position := foundoffset + 2;
         Tempstring := TheStream.ReadNullTerminatedString(30);
         Tempstring := Tempstring + TheStream.ReadNullTerminatedString(30); //Loom has version string null terminated and then date as separate null terminated, so have to read both and concatenate
         FoundStrings.Add(Tempstring);
-        foundoffset := TheStream.Position; //Update pointer with where we are after reading the string
+        foundoffset := TheStream.Position;
       end;
     end;
 
@@ -693,9 +696,22 @@ begin
       if TRegEx.IsMatch(FoundStrings[i], '(\b\d{1,2}\D{0,3})?\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|(Nov|Dec)(?:ember)?)\D?(\d{1,2}(st|nd|rd|th)?)?(([,.\-\/])\D?)?((19[7-9]\d|20\d{2})|\d{2})*', [roNone]) then
       begin
         result := GetAlphaSubstr2(FoundStrings[i]);
-        if result[1] = '''' then  //First character of many is '
-          delete(result, 1, 1);
+        //if result[1] = '''' then
+        //  delete(result, 1, 1);
         //log(result);
+        Exit;
+      end;
+    end;
+
+    //DOTT
+    foundoffset := 0;
+    while foundoffset <> -1 do
+    begin  //These bytes preceed the version string in DOTT and arent found elsewhere so once found just try and read it
+      foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$A4#$CD#$E6#$00);
+      if foundoffset > 0 then
+      begin
+        TheStream.Position := foundoffset + 4;
+        result := GetAlphaSubstr2( TheStream.ReadNullTerminatedString(60));
         Exit;
       end;
     end;
