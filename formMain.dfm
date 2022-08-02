@@ -28,9 +28,11 @@ object frmMain: TfrmMain
     DrawingStyle = gdsClassic
     FixedColor = clWhite
     FixedCols = 0
-    RowCount = 2
+    RowCount = 1
     Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goRowSizing, goColSizing, goFixedRowDefAlign]
+    ParentShowHint = False
     ScrollBars = ssVertical
+    ShowHint = True
     TabOrder = 0
     GridLineColor = 13948116
     GridFixedLineColor = 11250603
@@ -102,8 +104,9 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 158
+    FixedColWidth = 151
     FixedRowHeight = 22
+    FixedRowAlways = True
     FixedFont.Charset = DEFAULT_CHARSET
     FixedFont.Color = 3881787
     FixedFont.Height = -11
@@ -169,15 +172,15 @@ object frmMain: TfrmMain
     ExplicitWidth = 993
     ExplicitHeight = 375
     ColWidths = (
-      158
-      95
-      82
-      109
+      151
+      88
       75
-      52
-      70
-      294
-      154)
+      102
+      68
+      45
+      63
+      329
+      168)
   end
   object Panel1: TPanel
     Left = 0
@@ -555,36 +558,6 @@ object frmMain: TfrmMain
       Appearance.TextColorDisabled = 13948116
       Layout = blGlyphTopAdjusted
     end
-    object memoLog: TJvRichEdit
-      Left = 328
-      Top = 0
-      Width = 652
-      Height = 80
-      AdvancedTypography = False
-      Align = alClient
-      AutoAdvancedTypography = False
-      AutoVerbMenu = False
-      AllowObjects = False
-      AllowInPlace = False
-      ClipboardCommands = [caCopy, caCut, caPaste]
-      Font.Charset = ANSI_CHARSET
-      Font.Color = clWindowText
-      Font.Height = -13
-      Font.Name = 'Courier New'
-      Font.Style = []
-      HideSelection = False
-      HideScrollBars = False
-      Lines.Strings = (
-        'SCUMM Info Extractor'
-        'v1.0'
-        'By Benny http://quickandeasysoftware.net')
-      ParentFont = False
-      PlainText = True
-      ReadOnly = True
-      ScrollBars = ssVertical
-      SelText = ''
-      TabOrder = 3
-    end
     object btnHideInvalid: TAdvGlowButton
       Left = 246
       Top = 0
@@ -601,7 +574,7 @@ object frmMain: TfrmMain
       NotesFont.Style = []
       Rounded = False
       Transparent = True
-      TabOrder = 4
+      TabOrder = 3
       OnClick = btnHideInvalidClick
       Appearance.BorderColor = 15000546
       Appearance.BorderColorHot = 16371364
@@ -639,6 +612,66 @@ object frmMain: TfrmMain
       Appearance.TextColorHot = 2303013
       Appearance.TextColorDisabled = 13948116
       Layout = blGlyphTopAdjusted
+    end
+    object Panel2: TPanel
+      Left = 328
+      Top = 0
+      Width = 652
+      Height = 80
+      Align = alClient
+      BevelOuter = bvNone
+      Caption = 'Panel2'
+      TabOrder = 4
+      object editSearch: TJvEdit
+        Left = 448
+        Top = 0
+        Width = 204
+        Height = 80
+        Hint = 'Search for a word in an annotation or file name'
+        EmptyValue = 'Search'
+        Align = alRight
+        Alignment = taCenter
+        AutoSize = False
+        Font.Charset = ANSI_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -11
+        Font.Name = 'Tahoma'
+        Font.Style = []
+        ParentFont = False
+        TabOrder = 0
+        Text = ''
+        OnChange = editSearchChange
+      end
+      object memoLog: TJvRichEdit
+        Left = 0
+        Top = 0
+        Width = 448
+        Height = 80
+        AdvancedTypography = False
+        Align = alClient
+        AutoAdvancedTypography = False
+        AutoVerbMenu = False
+        AllowObjects = False
+        AllowInPlace = False
+        ClipboardCommands = [caCopy, caCut, caPaste]
+        Font.Charset = ANSI_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -13
+        Font.Name = 'Courier New'
+        Font.Style = []
+        HideSelection = False
+        HideScrollBars = False
+        Lines.Strings = (
+          'SCUMM Info Extractor'
+          'v1.0'
+          'By Benny http://quickandeasysoftware.net')
+        ParentFont = False
+        PlainText = True
+        ReadOnly = True
+        ScrollBars = ssVertical
+        SelText = ''
+        TabOrder = 1
+      end
     end
   end
   object FileOpenDialog1: TFileOpenDialog

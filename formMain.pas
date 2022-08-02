@@ -11,7 +11,7 @@ uses
   JCLFileUtils, JCLShell, JclStrings,
   OtlTask, OtlCollections, OtlParallel, OtlSync, tmsAdvGridExcel,
   uMemReader, AdvGlowButton, JvExStdCtrls, JvRichEdit, AdvUtil, JvExControls,
-  JvAnimatedImage, JvGIFCtrl;
+  JvAnimatedImage, JvGIFCtrl, JvEdit;
 
 type
   TfrmMain = class(TForm)
@@ -24,9 +24,11 @@ type
     btnParseInterpreters: TAdvGlowButton;
     btnScanResourceFiles: TAdvGlowButton;
     btnExportToExcel: TAdvGlowButton;
-    memoLog: TJvRichEdit;
     btnHideInvalid: TAdvGlowButton;
     JvGIFAnimator1: TJvGIFAnimator;
+    Panel2: TPanel;
+    editSearch: TJvEdit;
+    memoLog: TJvRichEdit;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -39,6 +41,7 @@ type
     procedure AdvStringGrid1GetCellColor(Sender: TObject; ARow, ACol: Integer;
       AState: TGridDrawState; ABrush: TBrush; AFont: TFont);
     procedure btnHideInvalidClick(Sender: TObject);
+    procedure editSearchChange(Sender: TObject);
   private
     { Private declarations }
     fHideRows: Boolean;
@@ -47,6 +50,7 @@ type
     function IsRowInvalid(aRow: integer): boolean;
     function ExtractStringFromResourceFiles(Path, Exename: string): string;
     function SearchStreamForValidVersionString(TheStream: TExplorerMemoryStream; XORVal: Byte): string;
+    function GetRowToMergeWith(Col0Dir: string): Integer;
     procedure GetFileChecksums(TheFile: string; var CRC: string; var MD5: string);
     procedure Log(LogItem: String);
     procedure HideInvalidRows();
@@ -231,9 +235,11 @@ procedure TfrmMain.AdvStringGrid1GetCellColor(Sender: TObject; ARow,
 begin
   if ARow = 0 then exit;  //Header row
 
-  if AdvStringGrid1.IsHiddenRow(ARow) then exit; //Dont colour hidden rows, it'll colour the next visible one instead
+  //Use RealRowIndex as if rows are hidden the index change
+  if AdvStringGrid1.IsHiddenRow(AdvStringGrid1.RealRowIndex(ARow)) then exit; //Dont colour hidden rows, it'll colour the next visible one instead
 
-  if IsRowInvalid(ARow) then
+  if IsRowInvalid(AdvStringGrid1.RealRowIndex(ARow)) then
+  //if IsRowInvalid(ARow) then
     ABrush.Color := InvalidColour;
 end;
 
@@ -246,6 +252,8 @@ end;
 
 procedure TfrmMain.btnHideInvalidClick(Sender: TObject);
 begin
+  editSearch.Clear;
+  editSearch.Text:=''; //Makes it show the default 'Search' text
   HideInvalidRows;
 end;
 
@@ -267,6 +275,9 @@ begin
 
   if FileOpenDialog1.Execute = false then
     exit;
+
+  editSearch.Clear;
+  editSearch.Text:=''; //Makes it show the default 'Search' text
 
   AdvStringGrid1.ClearNormalRows(1, AdvStringGrid1.RowCount -1);
   ExeFiles.Clear;
@@ -365,7 +376,7 @@ begin
           AdvStringGrid1.AllCells[5, value+1] := CRC32;
           AdvStringGrid1.AllCells[6, value+1] := MD5;
 
-          AdvStringGrid1.AutoSizeRow(value); //Resize the row to fit the text
+          AdvStringGrid1.AutoSizeRow(value+1); //Resize the row to fit the text
         end
       );
     end
@@ -384,6 +395,9 @@ var
 begin
   if FileOpenDialog1.Execute = false then
     exit;
+
+  editSearch.Clear;
+  editSearch.Text:=''; //Makes it show the default 'Search' text
 
   if fHideRows = true then //Show hidden rows so we can populate them if necessary
     btnHideInvalid.Click;
@@ -417,11 +431,18 @@ begin
         begin
           CompletedDirs.Add( ExtractFilePath(FoundFiles[i]));
 
+          //Does it already exist in the table? Find all matching rows
+          foundindex:= GetRowToMergeWith( ExtractFilePath(FoundFiles[i])); //ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i]))) );
+          //Try and pick the one that has an interpreter. If not just choose the first
+
+
+
           //Does this dir already exist in the table? Check the basic dir name in column 1
-          foundindex := AdvStringGrid1.Cols[1].IndexOf( ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i]))));
+          //foundindex := AdvStringGrid1.Cols[1].IndexOf( ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i]))));
 
           //Now check if its also the same full path. Check dir in column 0
-          if (foundindex <> -1) and (ExtractFilePath(AdvStringGrid1.AllCells[0, foundindex]) = ExtractFilePath(FoundFiles[i])) then
+          //if (foundindex <> -1) and (ExtractFilePath(AdvStringGrid1.AllCells[0, foundindex]) = ExtractFilePath(FoundFiles[i])) then
+          if foundindex <> -1 then
           begin
             AdvStringGrid1.AllCells[8, foundindex] :=  ResfileString;
           end
@@ -448,12 +469,31 @@ begin
   end;
 end;
 
+procedure TfrmMain.editSearchChange(Sender: TObject);
+begin
+  //sometimes it still has focus when view is filtered elsewhere
+  if (editSearch.Focused = false) then exit;
+  //if editSearch.Text = '' then exit;
+
+
+
+  if fHideRows then
+  begin
+    HideInvalidRows;
+    AdvStringGrid1.NarrowDown(editSearch.Text, True);
+    HideInvalidRows;
+  end
+  else
+  AdvStringGrid1.NarrowDown(editSearch.Text, True);
+end;
+
 procedure TfrmMain.EnableDisableButtons(Value: boolean);
 begin
   btnParseInterpreters.Enabled := Value;
   btnScanResourceFiles.Enabled := Value;
   btnExportToExcel.Enabled := Value;
   btnHideInvalid.Enabled := Value;
+  editSearch.Enabled := Value;
 end;
 
 function TfrmMain.ExtractStringFromResourceFiles(Path, Exename: string): string;
@@ -542,6 +582,7 @@ procedure TfrmMain.FormCreate(Sender: TObject);
 begin
   ExeFiles := TStringList.Create;
   fHideRows := false;
+  EditSearch.Font.Size:=20;
 
   if FileExists(ExtractFilePath(Application.ExeName) + DosboxExe) = False then
   begin
@@ -579,17 +620,92 @@ begin
   MD5 := UpperCase(THashMD5.GetHashStringFromFile( TheFile ))
 end;
 
-procedure TfrmMain.HideInvalidRows;
+//Search column 0 for the string and try to pick the most appropriate row to merge with.
+//If more than one then the one thats got an interpreter entry, otherwise just the first found.
+function TfrmMain.GetRowToMergeWith(Col0Dir: string): Integer;
 var
-  i: integer;
-  il: TIntList;
+  i, firstfoundindex: Integer;
 begin
-    if fHideRows = false then
+  //result := -1;
+  firstfoundindex := -1;
+  //Log(Col0Dir);
+  for I := 1 to AdvStringGrid1.RowCount -1 do //ignore header row
+  begin
+    if Col0Dir = ExtractFilePath(AdvStringGrid1.AllCells[0, i]) then //A match, so see if there's an interpreter here
+    begin
+      if firstfoundindex = -1 then
+        firstfoundindex := i; //store index of first match in case we need it later
+
+      if AdvStringGrid1.AllCells[3, i] > '' then //There's a SPUTM version string
+      begin
+        Result := i;
+        exit; //This has an interpreter so is the best match
+      end;
+    end;
+   end;
+    //If we get here its searched all the strings and hasnt found an interpreter so use first match (if there is one)
+  if firstfoundindex > -1 then
+    Result := firstfoundindex
+  else
+    Result := -1; //no match
+end;
+
+procedure TfrmMain.HideInvalidRows;
+{var
+  i: integer;
+  il: TIntList;}
+begin
+  if fHideRows = True then
+  begin
+    AdvStringGrid1.RemoveAllFilters;
+    fHideRows := False;
+    btnHideInvalid.ImageIndex := 7;
+    btnHideInvalid.Caption := 'Hide invalid items';
+    exit;
+  end;
+
+  fHideRows := True;
+  btnHideInvalid.ImageIndex := 8;
+  btnHideInvalid.Caption := 'Show invalid items';
+  with AdvStringGrid1 do
+  begin
+    FilterActive := False;
+    Filter.Clear; // clearing any previous filter settings
+    with Filter.Add do
+    begin
+       Condition := '>""';
+       Column := 3;
+       Data := fcNormal;
+       Operation := foAND; // perform AND with default True result
+    end;
+
+    with Filter.Add do
+    begin
+       Condition := '>""';
+       Column := 8;
+       Data := fcNormal;
+       Operation := foOR;
+    end;
+
+    with Filter.Add do
+    begin
+       Condition := '"THIS PROGRAM CANNOT BE RUN IN DOS MODE"';
+       Column := 7;
+       Data := fcNormal;
+       Operation := foOR;
+       RemoveAccented := True;
+       CaseSensitive := False;
+    end;
+
+    FilterActive := True; // applying the filter
+  end;
+
+    {if fHideRows = false then
     begin
     //Create list of rows to hide
     il := TIntList.Create(-1,-1);
     try
-      for I := 0 to AdvStringGrid1.AllRowCount -1 do
+      for I := 1 to AdvStringGrid1.AllRowCount -1 do
       begin
         if IsRowInvalid(i) then
           il.add(i);
@@ -609,7 +725,7 @@ begin
     fHideRows := false;
     btnHideInvalid.ImageIndex := 7;
     btnHideInvalid.Caption := 'Hide invalid items';
-  end;
+  end; }
 end;
 
 function TfrmMain.IsExeInvalid(OutputText: string): boolean;
@@ -624,11 +740,11 @@ begin
   Result := false;
 
   //Nothing in resource file cell and SCUMM version cell
-  if (AdvStringGrid1.AllCells[8, Arow] = '') and (AdvStringGrid1.AllCells[3, Arow] = '') then
+  if (AdvStringGrid1.Cells[8, Arow] = '') and (AdvStringGrid1.Cells[3, Arow] = '') then
     result := true;
 
   //Invalid exe and no resource file string (COMI has 'cannot be run in dos mode' string but does have a resource file string
-  if (IsExeInvalid(AdvStringGrid1.AllCells[7, ARow])) and (AdvStringGrid1.AllCells[8, Arow] = '') then
+  if (IsExeInvalid(AdvStringGrid1.Cells[7, ARow])) and (AdvStringGrid1.Cells[8, Arow] = '') then
     result := true;
 end;
 
@@ -638,6 +754,7 @@ begin
 end;
 
 
+//TODO refactor. All these hacks needs merging at least, or can a reasonable regex be found for version strings without date?
 function TfrmMain.SearchStreamForValidVersionString(
   TheStream: TExplorerMemoryStream; XORVal: Byte): string;
 var
@@ -647,30 +764,50 @@ var
 begin
   result := '';
   TheStream.SetXORVal(XORVal);
-  foundoffset := 0;
+  //foundoffset := 0;
 
   FoundStrings := TStringList.Create;
   try
+    //MI1 EGA Demo has no date string. e
+    //'Monkey Island Demo, version 2.0'
+    foundoffset := 0;
+    while foundoffset <> -1 do
+    begin  //These bytes preceed the version string in MI1 eg demo and arent found elsewhere so once found just try and read it
+      foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$80#$27#$01#$18);
+      if foundoffset > 0 then
+      begin
+        TheStream.Position := foundoffset + 4;
+        result := GetAlphaSubstr2( TheStream.ReadNullTerminatedString(100));
+        Exit;
+      end;
+    end;
+
+
+    foundoffset := 0;
     while foundoffset <> -1 do
     begin
       foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$27#$01); //These hex values preceed strings in the scripts
       if foundoffset > 0 then
       begin
         TheStream.Position := foundoffset + 2;
-        FoundStrings.Add(TheStream.ReadNullTerminatedString(50));
+        FoundStrings.Add(TheStream.ReadNullTerminatedString(100));
         foundoffset := TheStream.Position; //Update pointer with where we are after reading the string
       end;
     end;
-       //Log(FoundStrings.Text);
+    //Log(FoundStrings.Text);
     //Now do regex to get the string we want. Search for date strings.
     for i := 0 to FoundStrings.Count -1 do
     begin
       if TRegEx.IsMatch(FoundStrings[i], '[0-3]?[0-9].[0-3]?[0-9][\.\/-](?:[0-9]{2})?[0-9]{2}', [roNone]) then
       begin
         result := GetAlphaSubstr2(FoundStrings[i]);
-        //if result[1] = '''' then  //First character of many is '
-        //  delete(result, 1, 1);
-        //log(result);
+        Exit;
+      end;
+
+      //MI2 German needs different regex 'Monkey 2 (v1.0D 17Feb92) ÿD'
+      if TRegEx.IsMatch(FoundStrings[i], '(\b\d{1,2}\D{0,3})?(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|(Nov|Dec)(?:ember)?)\D?(\d{1,2}(st|nd|rd|th)?)?(([,.\-\/])\D?)?((19[7-9]\d|20\d{2})|\d{2})*', [roNone]) then
+      begin
+        result := GetAlphaSubstr2(FoundStrings[i]);
         Exit;
       end;
     end;
@@ -683,8 +820,8 @@ begin
       if foundoffset > 0 then
       begin
         TheStream.Position := foundoffset + 2;
-        Tempstring := TheStream.ReadNullTerminatedString(30);
-        Tempstring := Tempstring + TheStream.ReadNullTerminatedString(30); //Loom has version string null terminated and then date as separate null terminated, so have to read both and concatenate
+        Tempstring := TheStream.ReadNullTerminatedString(100);
+        Tempstring := Tempstring + TheStream.ReadNullTerminatedString(100); //Loom has version string null terminated and then date as separate null terminated, so have to read both and concatenate
         FoundStrings.Add(Tempstring);
         foundoffset := TheStream.Position;
       end;
@@ -693,12 +830,9 @@ begin
     //Search for date strings '.LOOM]^ 1.0 (..).) 8 Mar 90.'
     for i := 0 to FoundStrings.Count -1 do
     begin
-      if TRegEx.IsMatch(FoundStrings[i], '(\b\d{1,2}\D{0,3})?\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|(Nov|Dec)(?:ember)?)\D?(\d{1,2}(st|nd|rd|th)?)?(([,.\-\/])\D?)?((19[7-9]\d|20\d{2})|\d{2})*', [roNone]) then
+      if TRegEx.IsMatch(FoundStrings[i], '(\b\d{1,2}\D{0,3})?\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|(Nov|Dec)(?:ember)?)\D?(\d{1,2}(st|nd|rd|th)?)?(([,.\-\/])\D?)?((19[7-9]\d|20\d{2})|\d{2})*', [roNone]) then
       begin
         result := GetAlphaSubstr2(FoundStrings[i]);
-        //if result[1] = '''' then
-        //  delete(result, 1, 1);
-        //log(result);
         Exit;
       end;
     end;
@@ -711,11 +845,23 @@ begin
       if foundoffset > 0 then
       begin
         TheStream.Position := foundoffset + 4;
-        result := GetAlphaSubstr2( TheStream.ReadNullTerminatedString(60));
+        result := GetAlphaSubstr2( TheStream.ReadNullTerminatedString(100));
         Exit;
       end;
     end;
 
+    //MI1 CD from Monkey Madness - no date string
+    foundoffset := 0;
+    while foundoffset <> -1 do
+    begin  //These bytes preceed the version string  and arent found elsewhere so once found just try and read it
+      foundoffset := FindFileHeader(TheStream, foundoffset, TheStream.Size, #$02#$27#$01#$24);
+      if foundoffset > 0 then
+      begin
+        TheStream.Position := foundoffset + 4;
+        result := GetAlphaSubstr2( TheStream.ReadNullTerminatedString(100));
+        Exit;
+      end;
+    end;
   finally
     FoundStrings.Free;
   end;
