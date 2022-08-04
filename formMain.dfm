@@ -3,7 +3,7 @@ object frmMain: TfrmMain
   Top = 0
   Caption = 'SCUMM Info Extractor'
   ClientHeight = 568
-  ClientWidth = 1093
+  ClientWidth = 1111
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -20,15 +20,15 @@ object frmMain: TfrmMain
   object AdvStringGrid1: TAdvStringGrid
     Left = 0
     Top = 0
-    Width = 1093
-    Height = 488
+    Width = 1111
+    Height = 498
     Align = alClient
     ColCount = 9
     DefaultColWidth = 100
     DrawingStyle = gdsClassic
     FixedColor = clWhite
     FixedCols = 0
-    RowCount = 1
+    RowCount = 2
     Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goRowSizing, goColSizing, goFixedRowDefAlign]
     ParentShowHint = False
     ScrollBars = ssVertical
@@ -50,7 +50,7 @@ object frmMain: TfrmMain
       'Full Path'
       'Folder'
       'Filename'
-      'SPU(tm) Version'
+      'SPU(TM) Version'
       'Date+Time'
       'CRC32'
       'MD5'
@@ -104,7 +104,7 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 151
+    FixedColWidth = 150
     FixedRowHeight = 22
     FixedRowAlways = True
     FixedFont.Charset = DEFAULT_CHARSET
@@ -172,29 +172,30 @@ object frmMain: TfrmMain
     ExplicitWidth = 993
     ExplicitHeight = 375
     ColWidths = (
-      151
-      88
-      75
-      102
-      68
-      45
-      63
-      329
-      168)
+      150
+      86
+      73
+      110
+      72
+      46
+      61
+      330
+      179)
   end
   object Panel1: TPanel
     Left = 0
-    Top = 488
-    Width = 1093
-    Height = 80
+    Top = 498
+    Width = 1111
+    Height = 70
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
+    ExplicitWidth = 1093
     object JvGIFAnimator1: TJvGIFAnimator
-      Left = 980
+      Left = 998
       Top = 0
       Width = 113
-      Height = 80
+      Height = 70
       AsyncDrawing = True
       AutoSize = False
       Center = True
@@ -392,12 +393,14 @@ object frmMain: TfrmMain
         1C0400003B}
       Align = alRight
       Visible = False
+      ExplicitLeft = 980
+      ExplicitHeight = 80
     end
     object btnParseInterpreters: TAdvGlowButton
       Left = 0
       Top = 0
       Width = 82
-      Height = 80
+      Height = 70
       Align = alLeft
       Caption = 'Parse interpreters'
       ImageIndex = 2
@@ -452,7 +455,7 @@ object frmMain: TfrmMain
       Left = 82
       Top = 0
       Width = 82
-      Height = 80
+      Height = 70
       Align = alLeft
       Caption = 'Scan resource files'
       ImageIndex = 3
@@ -507,7 +510,7 @@ object frmMain: TfrmMain
       Left = 164
       Top = 0
       Width = 82
-      Height = 80
+      Height = 70
       Align = alLeft
       Caption = 'Export data to Excel'
       ImageIndex = 1
@@ -562,7 +565,7 @@ object frmMain: TfrmMain
       Left = 246
       Top = 0
       Width = 82
-      Height = 80
+      Height = 70
       Align = alLeft
       Caption = 'Hide invalid items'
       ImageIndex = 7
@@ -616,17 +619,18 @@ object frmMain: TfrmMain
     object Panel2: TPanel
       Left = 328
       Top = 0
-      Width = 652
-      Height = 80
+      Width = 670
+      Height = 70
       Align = alClient
       BevelOuter = bvNone
       Caption = 'Panel2'
       TabOrder = 4
+      ExplicitWidth = 652
       object editSearch: TJvEdit
-        Left = 448
+        Left = 466
         Top = 0
         Width = 204
-        Height = 80
+        Height = 70
         Hint = 'Search for a word in an annotation or file name'
         EmptyValue = 'Search'
         Align = alRight
@@ -641,12 +645,14 @@ object frmMain: TfrmMain
         TabOrder = 0
         Text = ''
         OnChange = editSearchChange
+        ExplicitLeft = 454
+        ExplicitTop = 6
       end
       object memoLog: TJvRichEdit
         Left = 0
         Top = 0
-        Width = 448
-        Height = 80
+        Width = 466
+        Height = 70
         AdvancedTypography = False
         Align = alClient
         AutoAdvancedTypography = False
@@ -671,6 +677,7 @@ object frmMain: TfrmMain
         ScrollBars = ssVertical
         SelText = ''
         TabOrder = 1
+        ExplicitWidth = 448
       end
     end
   end

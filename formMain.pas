@@ -44,10 +44,9 @@ type
     procedure editSearchChange(Sender: TObject);
   private
     { Private declarations }
-    fHideRows: Boolean;
+    fHideRows, FilteringInProgress: Boolean;
     ExeFiles: TStringList;
     function IsExeInvalid(OutputText: string): boolean;
-    function IsRowInvalid(aRow: integer): boolean;
     function ExtractStringFromResourceFiles(Path, Exename: string): string;
     function SearchStreamForValidVersionString(TheStream: TExplorerMemoryStream; XORVal: Byte): string;
     function GetRowToMergeWith(Col0Dir: string): Integer;
@@ -56,6 +55,7 @@ type
     procedure HideInvalidRows();
     procedure EnableDisableButtons(Value: boolean);
     procedure ShowProgressAnimation(Value: Boolean);
+    procedure AddRowValid(aRow: integer);
   public
     { Public declarations }
   end;
@@ -222,6 +222,24 @@ begin
   end;
 end;
 
+procedure TfrmMain.AddRowValid(aRow: integer);
+var
+  ValidString: string;
+begin
+  ValidString := 'Y';
+
+  //Nothing in resource file cell and SCUMM version cell
+  if (AdvStringGrid1.Cells[8, Arow] = '') and (AdvStringGrid1.Cells[3, Arow] = '') then
+    ValidString := 'N';
+
+  //Invalid exe and no resource file string (COMI has 'cannot be run in dos mode' string but does have a resource file string
+  if (IsExeInvalid(AdvStringGrid1.Cells[7, ARow])) and (AdvStringGrid1.Cells[8, Arow] = '') then
+    ValidString := 'N';
+
+  //Add to last column
+  AdvStringGrid1.Cells[9, Arow] := ValidString;
+end;
+
 procedure TfrmMain.AdvGridExcelIO1ExportColumnFormat(Sender: TObject; GridCol,
   GridRow, XlsCol, XlsRow: Integer; const Value: WideString;
   var ExportCellAsString: Boolean);
@@ -234,13 +252,20 @@ procedure TfrmMain.AdvStringGrid1GetCellColor(Sender: TObject; ARow,
   ACol: Integer; AState: TGridDrawState; ABrush: TBrush; AFont: TFont);
 begin
   if ARow = 0 then exit;  //Header row
+  if FilteringInProgress then Exit;
 
   //Use RealRowIndex as if rows are hidden the index change
-  if AdvStringGrid1.IsHiddenRow(AdvStringGrid1.RealRowIndex(ARow)) then exit; //Dont colour hidden rows, it'll colour the next visible one instead
+  //if AdvStringGrid1.IsHiddenRow(AdvStringGrid1.RealRowIndex(ARow)) then exit; //Dont colour hidden rows, it'll colour the next visible one instead
+  if AdvStringGrid1.IsHiddenRow(ARow) then Exit;   //Dont colour hidden rows, it'll colour the next visible one instead
 
+  if AdvStringGrid1.AllCells[9, ARow] = 'N' then  //, AdvStringGrid1.RealRowIndex(ARow)] = 'N' then
+    ABrush.Color := InvalidColour;
+
+  {
   if IsRowInvalid(AdvStringGrid1.RealRowIndex(ARow)) then
   //if IsRowInvalid(ARow) then
     ABrush.Color := InvalidColour;
+    }
 end;
 
 procedure TfrmMain.btnExportToExcelClick(Sender: TObject);
@@ -270,8 +295,18 @@ begin
   end;
 
   //Delete old output files
-  DeleteDirectory('outputs', false);
-  CreateDir('outputs');
+  if DeleteDirectory('outputs', false) = False then
+  begin
+    Log('Couldnt delete all contents of outputs folder. Check that none of the files in there are in use.');
+    Exit;
+  end;
+
+  //(Re)create outputs folder
+  if CreateDir('outputs') = false then
+  begin
+    Log('Couldnt create outputs folder, retry and check that this isnt running from a read only location');
+    exit;
+  end;
 
   if FileOpenDialog1.Execute = false then
     exit;
@@ -345,9 +380,12 @@ begin
             OutText := Trim( TFile.ReadAllText('outputs\out' + inttostr(value) + '.txt') );  //Read the output
             AdvStringGrid1.AllCells[7, value+1] := OutText;
 
-            //Ignore this exe if in ignore array
+            //Ignore this exe if in ignore array. Just to speed things up a little.
             if MatchText(extractfilename(ExeFiles[value]), ExesToExclude) then
+            begin
+              AddRowValid(value+1);
               exit;
+            end;
 
             firstline := StrBefore(sLineBreak, OutText);
             firstline := firstline + sLineBreak; //Add the linebreak back in, we search for it later
@@ -376,6 +414,8 @@ begin
           AdvStringGrid1.AllCells[5, value+1] := CRC32;
           AdvStringGrid1.AllCells[6, value+1] := MD5;
 
+          AddRowValid(value+1);
+
           AdvStringGrid1.AutoSizeRow(value+1); //Resize the row to fit the text
         end
       );
@@ -389,10 +429,13 @@ end;
 
 procedure TfrmMain.btnScanResourceFilesClick(Sender: TObject);
 var
-  i, foundindex: integer;
+  i, foundindex, TotalNew, TotalUpdated: integer;
   FoundFiles, CompletedDirs: TStringList;
   ResfileString: string;
 begin
+  TotalNew := 0;
+  TotalUpdated := 0;
+
   if FileOpenDialog1.Execute = false then
     exit;
 
@@ -445,6 +488,8 @@ begin
           if foundindex <> -1 then
           begin
             AdvStringGrid1.AllCells[8, foundindex] :=  ResfileString;
+            Inc(TotalUpdated);
+            AddRowValid(foundindex);
           end
           else //add it as a new row
           begin
@@ -452,6 +497,8 @@ begin
             AdvStringGrid1.AllCells[8, AdvStringGrid1.LastRow] := ResfileString;
             AdvStringGrid1.AllCells[0, AdvStringGrid1.LastRow] := ExtractFilePath(FoundFiles[i]);
             AdvStringGrid1.AllCells[1, AdvStringGrid1.LastRow] := ExtractFileName( ExcludeTrailingPathDelimiter(ExtractFilePath(FoundFiles[i])));
+            inc(TotalNew);
+            AddRowValid(AdvStringGrid1.LastRow);
           end;
           AdvStringGrid1.AutoSizeRows(false, 0); //Resize the rows
         end;
@@ -459,7 +506,7 @@ begin
       application.ProcessMessages; //Horrible, but it'll do for now
     end;
 
-    log('Scanning finished.');
+    log('Scanning finished. ' + inttostr(TotalNew) + ' new entries and ' + inttostr(TotalUpdated) + ' existing entries updated.');
     beep;
   finally
     CompletedDirs.Free;
@@ -473,18 +520,65 @@ procedure TfrmMain.editSearchChange(Sender: TObject);
 begin
   //sometimes it still has focus when view is filtered elsewhere
   if (editSearch.Focused = false) then exit;
-  //if editSearch.Text = '' then exit;
+  if editSearch.Text = '' then exit;
+
+  FilteringInProgress := true;
+
+  {if fHideRows = true then
+    HideInvalidRows;}
 
 
+  AdvStringGrid1.UnHideColumn(9);
 
-  if fHideRows then
+  AdvStringGrid1.RemoveAllFilters;
+  AdvStringGrid1.FilterActive := false;
+  AdvStringGrid1.Filter.Clear; // clearing any previous filter settings
+
+  if fHideRows = True then
+  begin
+    with AdvStringGrid1.Filter.Add do
+    begin
+       Condition := '>""';
+       Column := 3;
+       Data := fcNormal;
+       Operation := foAND; // perform AND with default True result
+    end;
+    with AdvStringGrid1.Filter.Add do
+    begin
+       Condition := '>""';
+       Column := 8;
+       Data := fcNormal;
+       Operation := foOR;
+    end;
+    with AdvStringGrid1.Filter.Add do
+    begin
+       Condition := '"THIS PROGRAM CANNOT BE RUN IN DOS MODE"';
+       Column := 7;
+       Data := fcNormal;
+       Operation := foOR;
+       RemoveAccented := True;
+       CaseSensitive := False;
+    end;
+    AdvStringGrid1.ApplyFilter;
+  end;
+
+
+  AdvStringGrid1.FilterActive := True; // applying the filter
+  AdvStringGrid1.NarrowDown(editSearch.Text, True);
+
+  AdvStringGrid1.HideColumn(9);
+
+  {if fHideRows then
   begin
     HideInvalidRows;
     AdvStringGrid1.NarrowDown(editSearch.Text, True);
     HideInvalidRows;
   end
   else
-  AdvStringGrid1.NarrowDown(editSearch.Text, True);
+  AdvStringGrid1.NarrowDown(editSearch.Text, True); }
+
+  //AdvStringGrid1.NarrowDown(editSearch.Text, True);
+  FilteringInProgress := false;
 end;
 
 procedure TfrmMain.EnableDisableButtons(Value: boolean);
@@ -583,6 +677,7 @@ begin
   ExeFiles := TStringList.Create;
   fHideRows := false;
   EditSearch.Font.Size:=20;
+  FilteringInProgress := false;
 
   if FileExists(ExtractFilePath(Application.ExeName) + DosboxExe) = False then
   begin
@@ -591,6 +686,11 @@ begin
   end;
 
   CreateDir('outputs');
+
+  //Add hidden 'valid' column at the end
+  AdvStringGrid1.AddColumn;
+  AdvStringGrid1.ColumnHeaders.Add('Valid');
+  AdvStringGrid1.HideColumn(9);
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -655,12 +755,20 @@ procedure TfrmMain.HideInvalidRows;
   i: integer;
   il: TIntList;}
 begin
+  {When using hidden rows and hidden columns, from the manual:
+  The recommended way is to first apply all row hiding and then apply column hiding
+  and unhide the columns again before unhiding the rows.}
+  AdvStringGrid1.UnHideColumn(9);
+
   if fHideRows = True then
   begin
+    AdvStringGrid1.FilterActive := False;
     AdvStringGrid1.RemoveAllFilters;
+    AdvStringGrid1.Filter.Clear;
     fHideRows := False;
     btnHideInvalid.ImageIndex := 7;
     btnHideInvalid.Caption := 'Hide invalid items';
+    AdvStringGrid1.HideColumn(9);
     exit;
   end;
 
@@ -698,16 +806,17 @@ begin
     end;
 
     FilterActive := True; // applying the filter
+    AdvStringGrid1.HideColumn(9);
   end;
 
-    {if fHideRows = false then
+   { if fHideRows = false then
     begin
     //Create list of rows to hide
     il := TIntList.Create(-1,-1);
     try
       for I := 1 to AdvStringGrid1.AllRowCount -1 do
       begin
-        if IsRowInvalid(i) then
+        if AdvStringGrid1.AllCells[9, i] = 'N' then
           il.add(i);
       end;
 
@@ -725,7 +834,8 @@ begin
     fHideRows := false;
     btnHideInvalid.ImageIndex := 7;
     btnHideInvalid.Caption := 'Hide invalid items';
-  end; }
+  end;
+  AdvStringGrid1.HideColumn(9);}
 end;
 
 function TfrmMain.IsExeInvalid(OutputText: string): boolean;
@@ -735,7 +845,7 @@ begin
   result := StrHasPrefix( UpperCase(OutputText), InvalidStringsBeginning);
 end;
 
-function TfrmMain.IsRowInvalid(aRow: integer): boolean;
+{function TfrmMain.IsRowInvalid(aRow: integer): boolean;
 begin
   Result := false;
 
@@ -746,7 +856,7 @@ begin
   //Invalid exe and no resource file string (COMI has 'cannot be run in dos mode' string but does have a resource file string
   if (IsExeInvalid(AdvStringGrid1.Cells[7, ARow])) and (AdvStringGrid1.Cells[8, Arow] = '') then
     result := true;
-end;
+end; }
 
 procedure TfrmMain.Log(LogItem: String);
 begin
