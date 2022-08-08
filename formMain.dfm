@@ -28,7 +28,7 @@ object frmMain: TfrmMain
     DrawingStyle = gdsClassic
     FixedColor = clWhite
     FixedCols = 0
-    RowCount = 2
+    RowCount = 1
     Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goRowSizing, goColSizing, goFixedRowDefAlign]
     ParentShowHint = False
     ScrollBars = ssVertical
@@ -50,12 +50,12 @@ object frmMain: TfrmMain
       'Full Path'
       'Folder'
       'Filename'
-      'SPU(TM) Version'
+      'SPUTM Version'
       'Date+Time'
       'CRC32'
       'MD5'
       'Interpreter Output'
-      'In Resource Files')
+      'Game scripts version')
     ColumnSize.Stretch = True
     ColumnSize.StretchColumn = 7
     ColumnSize.SynchWithGrid = True
@@ -104,7 +104,7 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 150
+    FixedColWidth = 147
     FixedRowHeight = 22
     FixedRowAlways = True
     FixedFont.Charset = DEFAULT_CHARSET
@@ -172,15 +172,15 @@ object frmMain: TfrmMain
     ExplicitWidth = 993
     ExplicitHeight = 375
     ColWidths = (
-      150
-      86
-      73
-      110
-      72
-      46
-      61
-      330
-      179)
+      147
+      83
+      70
+      107
+      74
+      52
+      70
+      319
+      185)
   end
   object Panel1: TPanel
     Left = 0
@@ -190,7 +190,6 @@ object frmMain: TfrmMain
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitWidth = 1093
     object JvGIFAnimator1: TJvGIFAnimator
       Left = 998
       Top = 0
@@ -457,7 +456,7 @@ object frmMain: TfrmMain
       Width = 82
       Height = 70
       Align = alLeft
-      Caption = 'Scan resource files'
+      Caption = 'Scan scripts in resource files'
       ImageIndex = 3
       Images = ImageList1
       NotesFont.Charset = DEFAULT_CHARSET
@@ -625,7 +624,6 @@ object frmMain: TfrmMain
       BevelOuter = bvNone
       Caption = 'Panel2'
       TabOrder = 4
-      ExplicitWidth = 652
       object editSearch: TJvEdit
         Left = 466
         Top = 0
@@ -645,8 +643,6 @@ object frmMain: TfrmMain
         TabOrder = 0
         Text = ''
         OnChange = editSearchChange
-        ExplicitLeft = 454
-        ExplicitTop = 6
       end
       object memoLog: TJvRichEdit
         Left = 0
@@ -670,14 +666,13 @@ object frmMain: TfrmMain
         Lines.Strings = (
           'SCUMM Info Extractor'
           'v1.0'
-          'By Benny http://quickandeasysoftware.net')
+          'http://quickandeasysoftware.net')
         ParentFont = False
         PlainText = True
         ReadOnly = True
         ScrollBars = ssVertical
         SelText = ''
         TabOrder = 1
-        ExplicitWidth = 448
       end
     end
   end
