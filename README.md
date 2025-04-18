@@ -3,6 +3,8 @@ Extracts version information from SCUMM interpreters and scripts.
 
 It is possible to get interpreter information in most DOS SCUMM games by running the executable with an invalid command line parameter like /? You can also get different version information ingame by pressing ctrl+v. This program automatically extracts both types of information. This means that it extracts interpreter information from the DOS versions and version information from the scripts on all platforms.
 
+![Screenshot](https://quickandeasysoftware.net/wp/wp-content/uploads/2022/08/SCUMMInfoExtractor2.png)
+
 ### Why does it take so long when running the interpreters?
 It runs each interpreter in dosbox and pipes its output back to the program. It runs a number of Dosbox instances in parallel to speed it up but much of the overhead is in starting and stopping the dosbox processes. It would be much quicker to have one Dosbox instance but this isnt possible because some executables crash or hang, the program monitors the Dosbox processes and terminates any that have hung. It takes a brute force approach and tries to run every .exe it finds in Dosbox so some will inevitably hang and have to be terminated.
 
@@ -14,3 +16,5 @@ They dont have a version string in their interpreter, or at least not one that g
 
 ### Why are the column widths small when exported to a spreadsheet?
 The column widths mirror what you have in the program when you press export. Before exporting it'll try and expand the output column to make that fit but otherwise the column widths will be what you see on the screen. If you're having issues maximise the window before pressing export.
+
+http://quickandeasysoftware.net
