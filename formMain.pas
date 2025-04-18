@@ -277,9 +277,11 @@ end;
 
 procedure TfrmMain.btnHideInvalidClick(Sender: TObject);
 begin
+  FilteringInProgress := True;
   editSearch.Clear;
   editSearch.Text:=''; //Makes it show the default 'Search' text
   HideInvalidRows;
+  FilteringInProgress := False;
 end;
 
 procedure TfrmMain.btnParseInterpretersClick(Sender: TObject);
@@ -366,7 +368,7 @@ begin
     begin
       //log(inttostr(value));
       //If there's errors in future its dos 8.3 filenames eg outputs\outxx.txt it just under the limit when it was outputxx anying above 99 got ignored.
-      ExecuteProcess(ExtractFilePath(Application.ExeName) + DosboxExe, '-noconsole -c "mount d ." -c "mount C ''' + ExtractFilePath(ExeFiles[value]) + '''" -c "c:" -c "' + extractfilename(ExtractShortPathName(ExeFiles[value])) + ' /? >d:\outputs\out' + inttostr(value) + '.txt" -exit', '', True, 8000, 0);
+      ExecuteProcess(ExtractFilePath(Application.ExeName) + DosboxExe, '-noconsole -c "mount d ." -c "mount C ''' + ExtractFilePath(ExeFiles[value]) + '''" -c "c:" -c "' + extractfilename(ExtractShortPathName(ExeFiles[value])) + ' /? >d:\outputs\' + inttostr(value) + '.txt" -exit', '', True, 8000, 0);
       if task.CancellationToken.IsSignalled then exit;
 
       task.Invoke(
@@ -375,9 +377,9 @@ begin
           outtext, firstline, versionstring, datetimestring: string;
           CRC32, MD5: string;
         begin
-          if fileexists('outputs\out' + inttostr(value) + '.txt') then
+          if fileexists('outputs\' + inttostr(value) + '.txt') then
           begin
-            OutText := Trim( TFile.ReadAllText('outputs\out' + inttostr(value) + '.txt') );  //Read the output
+            OutText := Trim( TFile.ReadAllText('outputs\' + inttostr(value) + '.txt') );  //Read the output
             AdvStringGrid1.AllCells[7, value+1] := OutText;
 
             //Ignore this exe if in ignore array. Just to speed things up a little.
@@ -556,7 +558,7 @@ begin
        Column := 7;
        Data := fcNormal;
        Operation := foOR;
-       RemoveAccented := True;
+       //RemoveAccented := True; causing crashes, unsure why
        CaseSensitive := False;
     end;
     AdvStringGrid1.ApplyFilter;
@@ -564,7 +566,8 @@ begin
 
 
   AdvStringGrid1.FilterActive := True; // applying the filter
-  AdvStringGrid1.NarrowDown(editSearch.Text, True);
+  //AdvStringGrid1.NarrowDown(editSearch.Text, True);  the accented characters check is causing crashes
+  AdvStringGrid1.NarrowDown(editSearch.Text, False);
 
   AdvStringGrid1.HideColumn(9);
 
@@ -801,13 +804,14 @@ begin
        Column := 7;
        Data := fcNormal;
        Operation := foOR;
-       RemoveAccented := True;
+       //RemoveAccented := True;  This was causing crashes - cant work out why right now
        CaseSensitive := False;
     end;
 
     FilterActive := True; // applying the filter
     AdvStringGrid1.HideColumn(9);
   end;
+
 
    { if fHideRows = false then
     begin

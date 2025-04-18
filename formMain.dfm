@@ -10,12 +10,10 @@ object frmMain: TfrmMain
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poScreenCenter
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  PixelsPerInch = 96
   TextHeight = 13
   object AdvStringGrid1: TAdvStringGrid
     Left = 0
@@ -85,6 +83,14 @@ object frmMain: TfrmMain
     ControlLook.DropDownFooter.Font.Style = []
     ControlLook.DropDownFooter.Visible = True
     ControlLook.DropDownFooter.Buttons = <>
+    ControlLook.ToggleSwitch.BackgroundBorderWidth = 1.000000000000000000
+    ControlLook.ToggleSwitch.ButtonBorderWidth = 1.000000000000000000
+    ControlLook.ToggleSwitch.CaptionFont.Charset = DEFAULT_CHARSET
+    ControlLook.ToggleSwitch.CaptionFont.Color = clWindowText
+    ControlLook.ToggleSwitch.CaptionFont.Height = -12
+    ControlLook.ToggleSwitch.CaptionFont.Name = 'Segoe UI'
+    ControlLook.ToggleSwitch.CaptionFont.Style = []
+    ControlLook.ToggleSwitch.Shadow = False
     Filter = <>
     FilterDropDown.Font.Charset = DEFAULT_CHARSET
     FilterDropDown.Font.Color = clWindowText
@@ -104,7 +110,7 @@ object frmMain: TfrmMain
       'Larger than'
       'Smaller than'
       'Clear')
-    FixedColWidth = 147
+    FixedColWidth = 146
     FixedRowHeight = 22
     FixedRowAlways = True
     FixedFont.Charset = DEFAULT_CHARSET
@@ -167,20 +173,22 @@ object frmMain: TfrmMain
     SortSettings.HeaderColorTo = clWhite
     SortSettings.HeaderMirrorColor = clWhite
     SortSettings.HeaderMirrorColorTo = clWhite
-    Version = '8.6.4.2'
+    Version = '9.1.4.1'
     ExplicitTop = 59
     ExplicitWidth = 993
     ExplicitHeight = 375
     ColWidths = (
-      147
-      83
-      70
-      107
-      74
-      52
-      70
-      319
-      185)
+      146
+      82
+      69
+      106
+      73
+      51
+      69
+      324
+      187)
+    RowHeights = (
+      22)
   end
   object Panel1: TPanel
     Left = 0
